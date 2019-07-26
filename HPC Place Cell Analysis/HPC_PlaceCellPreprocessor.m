@@ -19,7 +19,7 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
             obj.DFF_binned = obj.dffBinner;
         end
         
-        function changeTemplate(obj)
+        function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
             fprintf('Choose your new template...\n')
             [fn,pn] = uigetfile('.mat');
             obj.importTemplate(pn,fn);
@@ -27,8 +27,11 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
             obj.DFF_binned = obj.dffBinner;
         end
         
+        function out = getBinnedDFF
+            
+        end
+        
     end
-    
     methods (Access = private)
         function importTemplate(obj,pn,fn)
             if nargin < 2
@@ -40,7 +43,6 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
         end
         
         
-        
         function out = dffBinner(obj)
             counts = zeros(obj.n_bins, obj.n_bins);
             dff_temp = zeros(obj.n_bins, obj.n_bins);
@@ -50,7 +52,7 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
             
             cell_responses = (obj.imaging_data.DFF - min(obj.imaging_data.DFF , [], 2)) ./ ...
                 (max(obj.imaging_data.DFF , [], 2) - min(obj.imaging_data.DFF , [], 2)); % normalizing the cell responses to make the heat map more interpretible
-            for ii = 1:5;%size(cell_responses,1)
+            for ii = 1:5; %size(cell_responses,1)
                 for jj = 1:length(obj.neurotar_data.X)
                     x_distance = abs(obj.neurotar_data.X(jj) - bin_X);
                     y_distance = abs(obj.neurotar_data.Y(jj) - bin_Y);
@@ -66,4 +68,5 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
         
     end
     
+end
 end
