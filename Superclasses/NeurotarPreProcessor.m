@@ -7,30 +7,29 @@ classdef NeurotarPreProcessor < handle
     
     
     properties (Constant = true)
-        variance_threshold = 0.001; % What threshold of variance within the neurotar sampling rate which is considered to be "good enough"
+        variance_threshold(1,1) double = 0.001; % What threshold of variance within the neurotar sampling rate which is considered to be "good enough"
     end
     
     properties (Access = protected)
-        imaging_data
-        neurotar_data
+        imaging_data struct
+        neurotar_data struct
     end
     
-    properties (SetAccess = protected)
-        ForceTimeLock
+    properties (SetAccess = protected) % I have this as SetAccess protected because I want to see if it happened
+        ForceTimeLock logical = 0
     end
     
     methods
-        function obj = NeurotarPreProcessor(data,floating,varargin) % contstructor
-            
+        
+        function obj = NeurotarPreProcessor(data,floating) % contstructor
             
             obj.imaging_data  = data;  % this lets our constructor assign the input arguments to the properties, for easier passing
             obj.neurotar_data = floating;
             
-            args = obj.checkInputs(data,floating,varargin{:});
-            
-            
-            obj.ForceTimeLock = args.ForceTimeLock;
-            
+        end
+        
+        function processData(obj)
+
             time = obj.extractTime;
             
             if obj.ForceTimeLock
@@ -45,6 +44,10 @@ classdef NeurotarPreProcessor < handle
             
         end
         
+        function obj = setForceTimeLock(obj, val)
+            obj.ForceTimeLock = val;
+        end
+        
         function out = getImagingData(obj)
             out = obj.imaging_data;
         end
@@ -56,17 +59,7 @@ classdef NeurotarPreProcessor < handle
     end
     
     
-    methods (Access = private)
-        function results = checkInputs(obj,data,floating,varargin)
-            
-            p = inputParser();
-            p.addRequired('data',@isstruct);
-            p.addRequired('floating',@isstruct);
-            
-            p.addParameter('ForceTimeLock',0,@islogical);
-            p.parse(data,floating,varargin{:});
-            results = p.Results;
-        end
+    methods (Access = protected)
         
         function time = extractTime(obj)
             time = obj.neurotar_data.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix

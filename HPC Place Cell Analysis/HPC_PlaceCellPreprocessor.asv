@@ -27,14 +27,12 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
             processData@NeurotarPreProcessor(obj); % Run the preprocessing steps
             
             [bin_X,bin_Y]=obj.makeBins;
-            [counts,DFF_binned,bin_X,bin_Y,cell_responses] = obj.binDFF(obj,bin_X,bin_Y);
+            out = obj.binDFF(bin_X,bin_Y);
         end
         
         function out = updateData(obj) % Updating, doesn't include initial processing
             [bin_X,bin_Y] = obj.makeBins;
-            [counts,DFF_binned,bin_X,bin_Y,cell_responses] = obj.binDFF(obj,bin_X,bin_Y);
-            
-           %% last step, find the cells
+            out = obj.binDFF(bin_X,bin_Y);
         end
         
         function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
@@ -75,9 +73,9 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
             out2 = bin_Y;
         end
         
-        function [counts,DFF_binned,bin_X,bin_Y,cell_responses] = binDFF(obj,bin_X,bin_Y)
+        function out = binDFF(obj,bin_X,bin_Y)
             counts = zeros(obj.NumBins, obj.NumBins);
-            DFF_binned = zeros(obj.NumBins, obj.NumBins);
+            dff_temp = zeros(obj.NumBins, obj.NumBins);
             
             cell_responses = (obj.imaging_data.DFF - min(obj.imaging_data.DFF , [], 2)) ./ ...
                 (max(obj.imaging_data.DFF , [], 2) - min(obj.imaging_data.DFF , [], 2)); % normalizing the cell responses to make the heat map more interpretible
@@ -89,11 +87,11 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
                     [~, bin_id_X(jj)] = min(x_distance);
                     [~, bin_id_Y(jj)] = min(y_distance);
                     counts(bin_id_X(jj), bin_id_Y(jj)) = counts(bin_id_X(jj), bin_id_Y(jj)) + 1;
-                    DFF_binned(bin_id_X(jj), bin_id_Y(jj),ii) = DFF_binned(bin_id_X(jj), bin_id_Y(jj)) + cell_responses(ii, jj);
+                    dff_temp(bin_id_X(jj), bin_id_Y(jj),ii) = dff_temp(bin_id_X(jj), bin_id_Y(jj)) + cell_responses(ii, jj);
                 end
             end
             
-            DFF_binned = DFF_binned ./ counts;
+            dff_temp = dff_temp ./ counts;
         end
 
             

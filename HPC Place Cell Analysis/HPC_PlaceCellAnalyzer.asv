@@ -1,23 +1,17 @@
 classdef HPC_PlaceCellAnalyzer < handle
     
 properties
-    data
-    template
+    
 end
 
 methods
-    function obj = HPC_PlaceCellAnalyzer(data,template)
-        
-        obj.data = data;
-        obj.template = template;
-        
-    end
+    
 end
     
 end   
 
 
-%{
+
 
 
             %% Step 1: Computing the spatial information
@@ -60,4 +54,3 @@ end
         
     end
     end
-%}
