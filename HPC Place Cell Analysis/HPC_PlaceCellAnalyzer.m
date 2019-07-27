@@ -10,7 +10,7 @@ classdef HPC_PlaceCellAnalyzer < handle
     end
     
     properties (Access = public ) %private
-        workingData struct % this is an easy catchall struct that just puts all our data together for easier management
+        workingData  % this is an easy catchall struct that just puts all our data together for easier management
         DFF_binned double
         heatmaps double
         
@@ -26,7 +26,7 @@ classdef HPC_PlaceCellAnalyzer < handle
             obj.neurotar_data = floating;
             
             obj.importTemplate(); % Initial import of the template
-            [obj.workingData] = binDFF(obj); % Initialize working data by passing in "working variables". These are variables which may be used or not...
+            obj.workingData = binDFF(obj); % Initialize working data by passing in "working variables". These are variables which may be used or not...
         end
         
         
@@ -97,7 +97,7 @@ classdef HPC_PlaceCellAnalyzer < handle
             end
         end
         
-        function out = binDFF(obj)
+        function  out = binDFF(obj)
             bin_X = obj.template.X(1):(obj.template.X(end) - obj.template.X(1))/(obj.numBins - 1):obj.template.X(end);
             bin_Y = obj.template.Y(1):(obj.template.Y(end) - obj.template.Y(1))/(obj.numBins - 1):obj.template.Y(end);
             
@@ -129,7 +129,7 @@ classdef HPC_PlaceCellAnalyzer < handle
             counts = ct; %doesn't change
             obj.DFF_binned = obj.DFF_binned ./ counts;
             
-            out = packData(counts,bin_id_X,bin_id_Y,cell_responses);
+            out = dataObject(counts,bin_id_X,bin_id_Y,cell_responses);
         end % this code is lifted from Will's code, just some minor changes to make it compatible
         
         function importTemplate(obj,pn,fn)
