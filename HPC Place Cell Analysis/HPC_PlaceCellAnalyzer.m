@@ -1,34 +1,45 @@
 classdef HPC_PlaceCellAnalyzer < handle
+    % ------------------------------------------------------------------------
+    % For analyzing hippocampal place cell data from Neurotar experiments.
+    % 90% of the code is taken from Will's code, and just reformatted to work
+    % in this configuration.
+    %
+    % Dependencies:
+    % dataObject <https://github.com/kevinksit/GeneralHelperCode>
+    %
+    % Written 27Jul2019 KS
+    % Updated
+    % ------------------------------------------------------------------------
+    properties (Constant = true)
+        numBins double = 10
+    end
     
-    
-    properties (Access = public) %protected
+    properties (SetAccess = protected)
         imaging_data struct
         neurotar_data struct
         template struct
         
-        numBins double = 10
+        % Hierarchy
+        analysisData
+        plottingData
+        workingData
+        
     end
     
-    properties (Access = public ) %private
-        workingData  % this is an easy catchall struct that just puts all our data together for easier management
-        DFF_binned double
-        heatmaps double
-        
-        % none of these actually need to be properties... they're just used in interim for calculating things.
-        
-        spatial_info double
-        isPlaceCell logical
-    end
-    
+    %% these are public methods, which allows us to call them from a script or the command window
     methods
         function obj = HPC_PlaceCellAnalyzer(data,floating) % Contsructor funtion
             obj.imaging_data = data;
             obj.neurotar_data = floating;
             
+            % Initialize data objects
+            obj.workingData = dataObject();
+            obj.plottingData = dataObject();
+            obj.analysisData = dataObject();
+            
             obj.importTemplate(); % Initial import of the template
-            obj.workingData = binDFF(obj); % Initialize working data by passing in "working variables". These are variables which may be used or not...
+            obj.binDFF(); % Initialize working data by passing in "working variables". These are variables which may be used or not...
         end
-        
         
         function findPlaceCells(obj)
             obj.computeSpatialInformation()
@@ -36,68 +47,33 @@ classdef HPC_PlaceCellAnalyzer < handle
             
             % plot
             figure
-            N = length(obj.spatial_info);
-            plot(1:N, obj.spatial_info, 'k-'); hold on
-            plot(find(obj.isPlaceCell == 1), obj.spatial_info(find(obj.isPlaceCell == 1)), 'ro', 'MarkerFaceColor', 'r'); hold on
+            N = length(obj.analysisData.spatial_info);
+            plot(1:N, obj.analysisData.spatial_info, 'k-'); hold on
+            plot(find(obj.analysisData.isPlaceCell == 1), obj.analysisData.spatial_info(find(obj.analysisData.isPlaceCell == 1)), 'ro', 'MarkerFaceColor', 'r'); hold on
             plot([1, N], [0, 0], 'k--')
         end
         
-        function makeHeatMaps(obj,cellNum) % i only need this to run on a single cell, which I've specfied
+        function makeHeatMap(obj,cellNum) % i only need this to run on a single cell, which I've specfied
             obj.computeSpatialInformation()
             
-            imagesc(obj.heatmaps(:,:,cellNum)); hold on
+            figure
+            imagesc(obj.plottingData.I(:,:,cellNum)); hold on
             title(strcat({'Heat map of neuron'}, {' '},  num2str(cellNum)));
             axis square
         end
         
-        
-        function computeSpatialInformation(obj)
-            unpackData(obj.workingData,'counts')
-            for ii = 1:size(obj.DFF_binned,3)
-                curr_dat = obj.DFF_binned(:,:,ii);
-                obj.heatmaps = counts / sum(counts(:)) .* curr_dat / nanmean(curr_dat(:)) .* log2(curr_dat / nanmean(curr_dat(:)));
-                obj.heatmaps(isnan(obj.heatmaps)) = 0;
-                obj.spatial_info(ii) = sum(obj.heatmaps(:));
-            end
-        end % lifted from Will's code, Step1/2
-        
-        function screenPlaceCells(obj) % lifted from Will's code Step2/2
-            unpackData(obj.workingData,'counts','bin_id_X','bin_id_Y','cell_responses')
-            
-            for ii = 1:length(obj.spatial_info)
-                if obj.spatial_info(ii) > 0
-                    num_shuffles = 500;
-                    shuff_spatial_info = zeros(1, num_shuffles);
-                    for jj = 1:num_shuffles
-                        shuff_DFF_binned = zeros(size(obj.DFF_binned,1),size(obj.DFF_binned,2));
-                        shuff_start_point = randi(length(cell_responses(ii,:)));
-                        shuff_cell_responses = cell_responses(ii,[shuff_start_point:length(cell_responses(ii,:)),...
-                            1:(shuff_start_point - 1)]);
-                        for kk = 1:size(bin_id_X,1)
-                            shuff_DFF_binned(bin_id_X(kk,ii), bin_id_Y(kk,ii)) = shuff_DFF_binned(bin_id_X(kk,ii), bin_id_Y(kk,ii)) + ...
-                                shuff_cell_responses(kk);
-                        end
-                        shuff_DFF_binned = shuff_DFF_binned ./ counts;
-                        
-                        I_shuff = counts / sum(counts(:)) .* shuff_DFF_binned / nanmean(shuff_DFF_binned(:)) .* ...
-                            log2(shuff_DFF_binned / nanmean(shuff_DFF_binned(:)));
-                        I_shuff(isnan(I_shuff)) = 0;
-                        shuff_spatial_info(jj) = sum(I_shuff(:));
-                    end
-                    
-                    percentile = length(find(obj.spatial_info(ii) > shuff_spatial_info)) / num_shuffles;
-                    if percentile > 0.8
-                        obj.isPlaceCell(ii) = 1;
-                    else
-                        obj.isPlaceCell(ii) = 0;
-                    end
-                else
-                    obj.isPlaceCell(ii) = 0;
-                end
-            end
+        function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
+            fprintf('Choose your new template...\n')
+            [fn,pn] = uigetfile('.mat');
+            obj.importTemplate(pn,fn);
         end
-        
-        function  out = binDFF(obj)
+    end
+    
+    
+    %% The following methods are protected, ie they can't be accessed outside of this object. They're for internal use only
+    
+    methods (Access = protected)
+        function binDFF(obj)
             bin_X = obj.template.X(1):(obj.template.X(end) - obj.template.X(1))/(obj.numBins - 1):obj.template.X(end);
             bin_Y = obj.template.Y(1):(obj.template.Y(end) - obj.template.Y(1))/(obj.numBins - 1):obj.template.Y(end);
             
@@ -123,15 +99,69 @@ classdef HPC_PlaceCellAnalyzer < handle
                     
                     dff_temp(bin_id_X(jj,ii), bin_id_Y(jj,ii)) = dff_temp(bin_id_X(jj,ii), bin_id_Y(jj,ii)) + cell_responses(ii, jj);
                 end
-                obj.DFF_binned(:,:,ii) = dff_temp;
+                DFF_binned(:,:,ii) = dff_temp;
             end
             
             counts = ct; %doesn't change
-            obj.DFF_binned = obj.DFF_binned ./ counts;
+            DFF_binned = DFF_binned ./ counts;
             
-            out = dataObject(counts,bin_id_X,bin_id_Y,cell_responses);
+            obj.analysisData.addData('DFF_binned');
+            obj.workingData.addData('counts','bin_id_X','bin_id_Y','cell_responses');
         end % this code is lifted from Will's code, just some minor changes to make it compatible
         
+        function computeSpatialInformation(obj)
+            for ii = 1:size(obj.analysisData.DFF_binned,3)
+                curr_dat = obj.analysisData.DFF_binned(:,:,ii);
+                heatmaps = obj.workingData.counts / sum(obj.workingData.counts(:)) .* curr_dat / nanmean(curr_dat(:)) .* log2(curr_dat / nanmean(curr_dat(:)));
+                heatmaps(isnan(heatmaps)) = 0;
+                spatial_info(ii) = sum(heatmaps(:));
+                I(:,:,ii) = heatmaps;
+            end
+            
+            obj.analysisData.addData('spatial_info');
+            obj.plottingData.addData('I');
+        end % lifted from Will's code, Step1/2
+        
+        function screenPlaceCells(obj) % lifted from Will's code Step2/2
+            % Although not totally recommended, I exported these two because they're accessed so much in the shuffling
+            % that keeping them in the object was slowing down the processing a LOT
+            obj.workingData.exportData('bin_id_X')
+            obj.workingData.exportData('bin_id_Y')
+            
+            for ii = 1:length(obj.analysisData.spatial_info)
+                if obj.analysisData.spatial_info(ii) > 0
+                    num_shuffles = 500;
+                    shuff_spatial_info = zeros(1, num_shuffles);
+                    for jj = 1:num_shuffles
+                        shuff_DFF_binned = zeros(size(obj.analysisData.DFF_binned,1),size(obj.analysisData.DFF_binned,2));
+                        shuff_start_point = randi(length(obj.workingData.cell_responses(ii,:)));
+                        shuff_cell_responses = obj.workingData.cell_responses(ii,[shuff_start_point:length(obj.workingData.cell_responses(ii,:)),...
+                            1:(shuff_start_point - 1)]);
+                        for kk = 1:size(bin_id_X,1)
+                            shuff_DFF_binned(bin_id_X(kk,ii), bin_id_Y(kk,ii)) = shuff_DFF_binned(bin_id_X(kk,ii), bin_id_Y(kk,ii)) + ...
+                                shuff_cell_responses(kk);
+                        end
+                        shuff_DFF_binned = shuff_DFF_binned ./ obj.workingData.counts;
+                        
+                        I_shuff = obj.workingData.counts / sum(obj.workingData.counts(:)) .* shuff_DFF_binned / nanmean(shuff_DFF_binned(:)) .* ...
+                            log2(shuff_DFF_binned / nanmean(shuff_DFF_binned(:)));
+                        I_shuff(isnan(I_shuff)) = 0;
+                        shuff_spatial_info(jj) = sum(I_shuff(:));
+                    end
+                    
+                    percentile = length(find(obj.analysisData.spatial_info(ii) > shuff_spatial_info)) / num_shuffles;
+                    if percentile > 0.8
+                        isPlaceCell(ii) = 1;
+                    else
+                        isPlaceCell(ii) = 0;
+                    end
+                else
+                    isPlaceCell(ii) = 0;
+                end
+            end
+            obj.analysisData.addData('isPlaceCell');
+        end
+                
         function importTemplate(obj,pn,fn)
             if nargin < 2
                 fprintf('No template provided, loading default empty template... \n')
@@ -141,11 +171,6 @@ classdef HPC_PlaceCellAnalyzer < handle
             end
         end
         
-        function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
-            fprintf('Choose your new template...\n')
-            [fn,pn] = uigetfile('.mat');
-            obj.importTemplate(pn,fn);
-        end
     end
 end
 
