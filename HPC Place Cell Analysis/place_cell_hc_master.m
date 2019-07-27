@@ -1,6 +1,7 @@
-hpc = HPC_PlaceCellPreprocessor(data,floating)
+hpc = HPC_PlaceCellPreprocessor(data,floating);
+hpc.setForceTimeLock(true);
+hpc.processData;
 
-data = hpc.getImagingData;
-floating = hpc.getNeurotarData;
+hpa = HPC_PlaceCellAnalyzer(hpc.getImagingData,hpc.getNeurotarData);
 
-HPC_PlaceCellAnalyzer(data,floating)
+hpa.findPlaceCells
