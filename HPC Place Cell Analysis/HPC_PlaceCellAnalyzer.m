@@ -17,6 +17,8 @@ classdef HPC_PlaceCellAnalyzer < handle
         bin_id_Y double
         
         spatial_info double
+
+        isPlaceCell logical
     end
     
     methods
@@ -37,20 +39,14 @@ classdef HPC_PlaceCellAnalyzer < handle
             %plot the stuff
         end
         
-        function makeHeatMaps(obj,cellNum) % i only need this to run on a single cell, which I've specfied?
+        function makeHeatMaps(obj,cellNum) % i only need this to run on a single cell, which I've specfied
             obj.makeBins;
             obj.binDFF;
             obj.computeSpatialInformation
             
             imagesc the hetamaps (I)
         end
-        
-        
-        function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
-            fprintf('Choose your new template...\n')
-            [fn,pn] = uigetfile('.mat');
-            obj.importTemplate(pn,fn);
-        end
+
         
         function computeSpatialInformation(obj)
             for ii = 1:size(obj.DFF_binned,3)
@@ -86,30 +82,27 @@ classdef HPC_PlaceCellAnalyzer < handle
                     percentile = length(find(obj.spatial_info(ii) > shuff_spatial_info)) / num_shuffles;
                     disp(num2str(percentile))
                     if percentile > 0.8
-                        place_cell(ii) = 1;
+                        isPlaceCell(ii) = 1;
                     else
-                        place_cell(ii) = 0;
+                        isPlaceCell(ii) = 0;
                     end
                 else
-                    place_cell(ii) = 0;
+                    isPlaceCell(ii) = 0;
                 end
             end
         end
         
-        function importTemplate(obj,pn,fn)
-            if nargin < 2
-                fprintf('No template provided, loading default empty template... \n')
-                obj.template = importdata('D:\Dropbox\Floating Cage\Arena templates\FloatCage_Empty_TEMPLATE.mat');
-            else
-                obj.template = load([pn fn]);
-            end
+        function plotPlaceCells(obj)
+        figure
+        plot(1:N, obj.spatial_info, 'k-'); hold on
+        plot(find(isPlaceCell == 1), obj.spatial_info(find(isPlaceCell == 1)), 'ro', 'MarkerFaceColor', 'r'); hold on
+        plot([1, N], [0, 0], 'k--')
         end
-        
-        
-        
+
+
         function binDFF(obj)
             bin_X = obj.template.X(1):(obj.template.X(end) - obj.template.X(1))/(obj.numBins - 1):obj.template.X(end);
-            bin_Y = obj.template.Y(1):(obj.template.Y(end) - obj.template.Y(1))/(obj.numBins - 1):obj.template.Y(end);
+                   bin_Y = obj.template.Y(1):(obj.template.Y(end) - obj.template.Y(1))/(obj.numBins - 1):obj.template.Y(end);
             
             obj.cell_responses = (obj.imaging_data.DFF - min(obj.imaging_data.DFF , [], 2)) ./ ...
                 (max(obj.imaging_data.DFF , [], 2) - min(obj.imaging_data.DFF , [], 2)); % normalizing the cell responses to make the heat map more interpretible
@@ -146,6 +139,21 @@ classdef HPC_PlaceCellAnalyzer < handle
         
         
     end
+
+     function importTemplate(obj,pn,fn)
+            if nargin < 2
+                fprintf('No template provided, loading default empty template... \n')
+                obj.template = importdata('D:\Dropbox\Floating Cage\Arena templates\FloatCage_Empty_TEMPLATE.mat');
+            else
+                obj.template = load([pn fn]);
+            end
+        end
+        
+         function changeTemplate(obj) % This lets you change your template, then re-bin according to the new templaet..
+            fprintf('Choose your new template...\n')
+            [fn,pn] = uigetfile('.mat');
+            obj.importTemplate(pn,fn);
+        end
     
 end
 
