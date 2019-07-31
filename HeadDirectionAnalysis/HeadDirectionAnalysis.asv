@@ -1,27 +1,36 @@
-classdef HeadDirectionPreprocessor < NeurotarPreProcessor
-    properties (Constant = true)
+classdef HeadDirectionAnalysis < handle
+       properties (Constant = true)
         bin_edges = [-180:10:180];
     end
     
-    properties (Access = protected)
-        processed_DFF
-    end
-    
+    properties 
+        workingData
+        analysisData
+        plottingData
+        
+        initData
+        initFloating
+        
+    end 
     
     methods
-        function obj = HeadDirectionPreprocessor(data,floating,varargin)
-            obj@NeurotarPreProcessor(data,floating,varargin{:});
+        function obj = HeadDirectionAnalysis(data,floating)
             
-            dff = obj.getImagingData.DFF;
-            direction = obj.getNeurotarData.alpha;
+            obj.initData = data;
+            obj.initFloating = floating;
             
-            obj.processed_DFF = zeros(size(dff,1),length(obj.bin_edges)-1); % initialize the processedDFF matrix
+            obj.workingData = dataObject();
+            obj.analysisData = dataObject();
+            obj.plottingData = dataObject();
+            
+            
+            
             groups = discretize(direction,obj.bin_edges);                   % discretize the directions
             
             obj.binResponse(dff,groups)                                     % Initial binning, always done
         end
         
-        function smoothResponse(obj,smooth_factor)
+         function smoothResponse(obj,smooth_factor)
             if nargin == 0
                 smooth_factor = round(length(obj.processed_DFF)/10);
             end
@@ -32,9 +41,12 @@ classdef HeadDirectionPreprocessor < NeurotarPreProcessor
         function data = getProcessedDFF(obj)
             data = obj.processed_DFF;
         end
+        
     end
     
-    
+        
+        
+       
     
     methods (Access = private)
         function binResponse(obj,dff,groups)
@@ -46,6 +58,8 @@ classdef HeadDirectionPreprocessor < NeurotarPreProcessor
             end
         end
     end
+    
+    
     
 end
 
