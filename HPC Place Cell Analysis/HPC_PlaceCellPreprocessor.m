@@ -7,10 +7,9 @@ classdef HPC_PlaceCellPreprocessor < NeurotarPreProcessor
         
     end
     
-    
+
     methods
         function obj = HPC_PlaceCellPreprocessor(data,floating)
-            
             obj@NeurotarPreProcessor(data,floating);
             
         end

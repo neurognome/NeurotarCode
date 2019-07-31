@@ -1,7 +1,8 @@
-hpc = HPC_PlaceCellPreprocessor(data,floating);
+hpc = HPC_PlaceCellPreprocessor(data,floating,'ForceTimeLock',1);
 
 % this is just to match Will's data, and speed up processing time...
 hpc.setForceTimeLock(true);
+
 hpc.processData;
 
 % Important notes about the HPC_PlaceCellAnalyzer:
