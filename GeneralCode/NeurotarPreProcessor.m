@@ -23,12 +23,12 @@ classdef NeurotarPreProcessor < handle
     methods
         
         function obj = NeurotarPreProcessor(data,floating) % contstructor
-            obj.workingData = dataObject();
-            obj.initData  = dataObject(data,floating);  % This stores the initial data away in case we need to revert to it
+            obj.workingData = DataObject();
+            obj.initData  = DataObject(data,floating);  % This stores the initial data away in case we need to revert to it
             
+            % Initial methods
             obj.processData(data,floating);
         end
-        
         
         function processData(obj,data,floating)
             if nargin < 2
@@ -50,7 +50,7 @@ classdef NeurotarPreProcessor < handle
             
             obj.preprocessChecker(data,floating);
             
-            obj.workingData = dataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
+            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
         end
         
         function obj = setForceTimeLock(obj, val)
@@ -59,9 +59,7 @@ classdef NeurotarPreProcessor < handle
     end
     
     
-    methods (Access = protected)
-        
-        
+    methods (Access = protected)      
         function time = extractTime(obj,floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
             time = time(:, [4,5,7,8,10:12]); % this is assuming none of recording last more than an hour
