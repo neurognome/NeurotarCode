@@ -7,7 +7,7 @@ classdef NeurotarDataExtractor < handle
     %
     %   Written by WTR 05/10/2019 // Last updated by WTR 07/18/2019
     %
-    %   Converted into OOP: KS 31Jul2019
+    %   Converted into class: KS 31Jul2019
     %-------------------------------------------------------------------------%
     
     properties
@@ -42,8 +42,13 @@ classdef NeurotarDataExtractor < handle
             
             % Initial methods
             obj.extractData(behaviour_data);
-            obj.saveData
         end
+        
+        function saveData(obj)
+            floating = obj.extractedData.exportData();
+            save(strcat('floating_data_', obj.mouse, '_', obj.date, '_session', num2str(obj.session_num), '.mat'), 'floating');
+        end
+        
         
         function visualize(obj)
             obj.extractedData.exportToVar(); % Dirty way of getting compatibility
@@ -154,6 +159,7 @@ classdef NeurotarDataExtractor < handle
             end
             out = {mouse, date, session_num, imaged};
         end
+        
         function extractData(obj,behaviour_data)
             obj.extractedData = DataObject();
             X     = cell2mat(behaviour_data(2:end, 7)); % their X and Y are flipped on their data sheet
@@ -167,11 +173,6 @@ classdef NeurotarDataExtractor < handle
             zones = cell2mat(behaviour_data(2:end, 10));
             
             obj.extractedData.addData('X','Y','r','phi','alpha','omega','speed','time','zones');
-        end
-        
-        function saveData(obj)
-            floating = obj.extractedData.exportData();
-            save(strcat('floating_data_', obj.mouse, '_', obj.date, '_session', num2str(obj.session_num), '.mat'), 'floating');
         end
         
     end
