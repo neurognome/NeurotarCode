@@ -22,9 +22,11 @@ classdef HeadDirectionAnalysis < handle
             X = floating.X;
             Y = floating.Y;
             alpha = floating.alpha;
-            obj.workingData  = dataObject(DFF,X,Y,alpha);
-            obj.analysisData = dataObject();
-            obj.plottingData = dataObject();
+            phi = floating.phi;
+            
+            obj.workingData  = DataObject('DFF','X','Y','alpha');
+            obj.analysisData = DataObject();
+            obj.plottingData = DataObject();
         end
         
         function findHeadDirectionCells();
