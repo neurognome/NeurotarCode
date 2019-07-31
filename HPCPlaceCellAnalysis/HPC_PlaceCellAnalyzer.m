@@ -33,9 +33,9 @@ classdef HPC_PlaceCellAnalyzer < handle
             obj.neurotar_data = floating;
             
             % Initialize data objects
-            obj.workingData = dataObject();
-            obj.plottingData = dataObject();
-            obj.analysisData = dataObject();
+            obj.workingData = DataObject();
+            obj.plottingData = DataObject();
+            obj.analysisData = DataObject();
             
             obj.importTemplate(); % Initial import of the template
             obj.binDFF(); % Initialize working data by passing in "working variables". These are variables which may be used or not...
