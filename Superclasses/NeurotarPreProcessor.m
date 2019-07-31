@@ -11,33 +11,31 @@ classdef NeurotarPreProcessor < handle
     end
     
     properties (Access = protected)
-        initData struct
-        initNeurotar struct
-        
-        workingData struct
-        workingNeurotar struct
+        initData
     end
     
     properties (SetAccess = protected) % I have this as SetAccess protected because I want to see if it happened
         ForceTimeLock logical = 0
+        workingData
+        
     end
     
     methods
         
         function obj = NeurotarPreProcessor(data,floating) % contstructor
-            
-            obj.initData  = data;  % This stores the initial data away in case we need to revert to it
-            obj.initNeurotar = floating;
+            obj.workingData = dataObject();
+            obj.initData  = dataObject(data,floating);  % This stores the initial data away in case we need to revert to it
             
             obj.processData(data,floating);
-            
-            
         end
+        
         
         function processData(obj,data,floating)
             if nargin < 2
-                data = obj.initData;
-                floating = obj.initNeurotar;
+                data = obj.initData.data;
+                floating = obj.initData.floating;
+                
+                obj.workingData.clearAllData();
             end
             
             time = obj.extractTime(floating);
@@ -52,26 +50,17 @@ classdef NeurotarPreProcessor < handle
             
             obj.preprocessChecker(data,floating);
             
-            obj.workingData = data;             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
-            obj.workingNeurotar = floating;
+            obj.workingData = dataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
         end
         
         function obj = setForceTimeLock(obj, val)
             obj.ForceTimeLock = val;
         end
-        
-        function out = getImagingData(obj)
-            out = obj.workingData;
-        end
-        
-        function out = getNeurotarData(obj)
-            out = obj.workingNeurotar;
-        end
-        
     end
     
     
     methods (Access = protected)
+        
         
         function time = extractTime(obj,floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
