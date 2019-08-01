@@ -10,12 +10,9 @@ hdp.processData;
 hda = HeadDirectionAnalysis(hdp.workingData.data,hdp.workingData.floating);
 
 % If you want use raw alpha, but not recommended...
-%hda.setHeadingFlag(false);
+hda.setHeadingFlag(false);
 
 hda.findHeadDirectionCells();
 
-hda.analysisData.exportToVar('binned_DFF');
 
-
-circ_mean(binned_DFF')
-
+hda2 = 
