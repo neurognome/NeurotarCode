@@ -98,6 +98,8 @@ classdef NeurotarPreProcessor < handle
                 floating.alpha = floating.alpha(neurotar_matched_indices);
                 floating.omega = floating.omega(neurotar_matched_indices);
                 floating.speed = floating.speed(neurotar_matched_indices);
+                floating.zones = floating.zones(neurotar_matched_indices);
+                floating.r     = floating.r(neurotar_matched_indices);
             end
             
         end
