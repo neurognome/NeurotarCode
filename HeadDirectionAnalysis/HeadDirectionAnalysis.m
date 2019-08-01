@@ -28,7 +28,7 @@ classdef HeadDirectionAnalysis < handle
             
             obj.initializeData(data,floating);
         end
-        
+%% Major analysis code
         function findHeadDirectionCells(obj)
             
             binned_DFF = obj.binDFF(obj.workingData.heading,obj.workingData.DFF);
@@ -38,22 +38,29 @@ classdef HeadDirectionAnalysis < handle
             obj.analysisData.addData(p);
             
             isDirectionTuned = p < obj.thresh;
-            obj.analysisData.addData(isDirectionTuned);       
-            
-            for c = 1:size(binned_DFF,1)
-                if isDirectionTuned(c)
-                    obj.polarPlot(c)
-                    pause
-                end
-            end
+            obj.analysisData.addData(isDirectionTuned);           
         end
         
+%% Visualization
+        function polarPlot(obj,c)
+            rho = obj.analysisData.binned_DFF(c,:);
+            rho = [rho rho(1)];
+            
+            theta = obj.bin_edges * pi/180;
+            pax = polaraxes();
+            polarplot(theta,rho);
+            set(pax,'ThetaZeroLocation','top')
+            set(pax,'ThetaDir','clockwise')
+        end
+        
+%% Setters and Getters       
         function setHeadingFlag(obj,val)
             obj.fixHeadingFlag = val;
             obj.initializeData(obj.initData,obj.initFloating);
         end
         
     end
+    
     
     methods (Access = private)
         function initializeData(obj,data,floating)
@@ -95,16 +102,7 @@ classdef HeadDirectionAnalysis < handle
             h = 2.*asind((r.*sind(alpha - phi))./(2.*obj.radius)) + alpha;
             h = wrapTo180(h); % to account for passing 180 on the thing
         end
-        
-        function polarPlot(obj,c)
-            rho = obj.analysisData.binned_DFF(c,:);
-            rho = [rho rho(1)];
-            
-            theta = obj.bin_edges * pi/180;
-            
-            polarplot(theta,rho);
-        end
-        
+
     end
     
 end
