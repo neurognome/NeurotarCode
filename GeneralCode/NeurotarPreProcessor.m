@@ -17,7 +17,6 @@ classdef NeurotarPreProcessor < handle
     properties (SetAccess = protected) % I have this as SetAccess protected because I want to see if it happened
         ForceTimeLock logical = 0
         workingData
-        
     end
     
     methods
@@ -27,7 +26,7 @@ classdef NeurotarPreProcessor < handle
             obj.initData  = DataObject(data,floating);  % This stores the initial data away in case we need to revert to it
             
             % Initial methods
-            obj.processData(data,floating);
+            obj.processData(obj.initData.data,obj.initData.floating);
         end
         
         function processData(obj,data,floating)
@@ -35,7 +34,7 @@ classdef NeurotarPreProcessor < handle
                 data = obj.initData.data;
                 floating = obj.initData.floating;
                 
-                obj.workingData.clearAllData();
+                obj.workingData.reset();
             end
             
             time = obj.extractTime(floating);
@@ -50,11 +49,15 @@ classdef NeurotarPreProcessor < handle
             
             obj.preprocessChecker(data,floating);
             
-            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
+            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..               
         end
         
         function obj = setForceTimeLock(obj, val)
             obj.ForceTimeLock = val;
+        end
+        
+        function out = getInitData(obj)
+            out = obj.initData.data;
         end
     end
     

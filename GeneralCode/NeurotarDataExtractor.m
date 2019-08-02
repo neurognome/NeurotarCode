@@ -45,13 +45,13 @@ classdef NeurotarDataExtractor < handle
         end
         
         function saveData(obj)
-            floating = obj.extractedData.exportData();
+            floating = obj.extractedData.export();
             save(strcat('floating_data_', obj.mouse, '_', obj.date, '_session', num2str(obj.session_num), '.mat'), 'floating');
         end
         
         
         function visualize(obj)
-            obj.extractedData.exportToVar(); % Dirty way of getting compatibility
+            obj.extractedData.exportVar(); % Dirty way of getting compatibility
             
             %% Occupancy distribution
             % Pulling the relevant data structures from the Neurotar excel sheet.
