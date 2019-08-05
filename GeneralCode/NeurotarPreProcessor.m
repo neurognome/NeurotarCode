@@ -27,6 +27,8 @@ classdef NeurotarPreProcessor < handle
             
             % Initial methods
             obj.processData(obj.initData.data,obj.initData.floating);
+            
+            
         end
         
         function processData(obj,data,floating)
@@ -49,7 +51,7 @@ classdef NeurotarPreProcessor < handle
             
             obj.preprocessChecker(data,floating);
             
-            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..               
+            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
         end
         
         function obj = setForceTimeLock(obj, val)
@@ -62,7 +64,7 @@ classdef NeurotarPreProcessor < handle
     end
     
     
-    methods (Access = protected)      
+    methods (Access = protected)
         function time = extractTime(obj,floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
             time = time(:, [4,5,7,8,10:12]); % this is assuming none of recording last more than an hour
@@ -79,10 +81,19 @@ classdef NeurotarPreProcessor < handle
         function [data,floating] = samplingFrequencyEqualizer(obj,data,floating,time,isUniform)
             if isUniform
                 fprintf('Your sampling rate is even, upsampling DFF to the neurotar frequency...\n')
+                
                 for ii =1:size(data.DFF,1)
                     temp(ii,:) = resample(data.DFF(ii,:),size(floating.time,1)+1,size(data.DFF,2));
                 end
                 data.DFF = temp;
+                
+                if isfield(data,'spikes')
+                    for ii =1:size(data.spikes,1)
+                        temp2(ii,:) = resample(data.spikes(ii,:),size(floating.time,1)+1,size(data.spikes,2));
+                    end
+                    data.spikes = temp2;
+                end
+                
             else
                 if obj.ForceTimeLock
                     fprintf('Forced to lock to stimulus time, not recommended... \n')
