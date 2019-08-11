@@ -18,20 +18,25 @@ hdp = HeadDirectionPreprocessor(data,floating);
 hda = HeadDirectionAnalysis(hdp.workingData.get('data'), hdp.workingData.get('floating'));
 
 % If you want use raw alpha, but not recommended...
-%hda.setHeadingFlag(false);
+hda.setHeadingFlag(false);
 
 
 %% Analysis 
 binned_DFF = hda.binDFF(hda.workingData.get('heading'),hda.workingData.get('DFF')); % bin DFF
 DFF = hda.workingData.get('DFF');
-isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
+% Not currently running below because I don't have the toolbox
+%isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
 pref_dir = hda.getPreferredDirection(binned_DFF); % Get preferred directions
 
-hda.analysisData.add('binned_DFF','p','pref_dir','isDirectionTuned');
+hda.analysisData.add('binned_DFF','pref_dir');
 
 
 
 % Current issue: not sure the best way to be able to figure out if they're actually "head directiony"
+[headDirIdx] = hda.calculateHeadDirectionIdx();
+
+isHeadDir = headDirIdx > 0.2;
+
 
 % what's the best way to determine that? Idk we'll work on this...
 
@@ -40,7 +45,7 @@ hda.setData(binned_DFF);
 
 
 hda.analysisData.exportVar('isDirectionTuned','pref_dir');
-cells2plot = find(isDirectionTuned);
+cells2plot = find(isHeadDir);
 for ii = 1:length(cells2plot)
     c = cells2plot(ii);
 hda.polarPlot(c,'LineWidth',5);

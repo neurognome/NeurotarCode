@@ -2,7 +2,7 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     
     % Make sure you have the circular statistics toolbox
     properties (Constant = true)
-        bin_width double = 10;
+        bin_width double = 20;
         radius    double = [120]; % 120mm
         thresh    double = 0.05; % p-value threshold for significant tuning
     end
@@ -30,6 +30,54 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
         end
 
         function findHeadDirectionCells(obj) % just a wrapper for full analysis later
+        end
+        
+        function [idx] = calculateHeadDirectionIdx(obj,data,heading)
+            % the following analyses are based on Giacomo et al 2017, in
+            % current biology... 
+            if nargin < 2
+            heading = obj.workingData.get('heading');
+            data    = obj.workingData.get('DFF'); % spkes hopfeully
+            end
+            % divide the time series into quardrants
+
+          %  binned_DFF = hda.binDFF(heading,data); % bin DFF
+            totalDur = length(heading);
+            quadrantLength = round(totalDur./4);
+            
+            for q = 1:4 % 4 quadrants...
+                if q == 4 % because it might not equally divide into 4, we might need to give one a lil' extra
+                    q_data{q} = data(:,(q-1) * quadrantLength + 1 : end);
+                    q_heading{q} = heading((q-1) * quadrantLength + 1 : end);
+                else
+                    q_data{q}    = data(:,(q-1) * quadrantLength + 1 : q*quadrantLength);
+                    q_heading{q} = heading((q-1) * quadrantLength + 1 : q*quadrantLength);
+                end
+            end
+            
+            
+            % Calculate the head direction preference per quadrant
+            for q = 1:4
+                q_binnedDFF(:,:,q) = obj.binDFF(q_heading{q},q_data{q});
+            end
+            
+            % compare quadrants in pairwise (1-1,1-2,1-3,1-4,2-3,2-4,3-4)
+            possibleCombinations = nchoosek(1:4,2);
+            
+            for c = 1:size(data,1)
+            for ii = 1:size(possibleCombinations,1)
+                quadrantCorrelations(c,ii) = corr(q_binnedDFF(c,:,possibleCombinations(ii,1))',q_binnedDFF(c,:,possibleCombinations(ii,2))');
+            end
+            end
+           
+            % Mean of all comparisons is the directional stability of
+            % correlations
+           
+            obj.analysisData.add('quadrantCorrelations');
+            
+            % must exceed..0.2 for their data
+            idx = mean(quadrantCorrelations,2);
+            
         end
 %% Setters and Getters       
         function setHeadingFlag(obj,val)
@@ -82,10 +130,10 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
               % lm = fit([1:length(data(ii,:))]',data(ii,:)','gauss1','Upper',[Inf 36 Inf], 'Lower', [-Inf 0 -Inf]);
              %  out(ii) = lm.b1;
              [~,out(ii)] = max(data(ii,:)); 
-           end 
-           
+           end  
            out=out*obj.bin_width - obj.bin_width; % convert to degrees, accounting for the extra 10 you get because -180:10:180
         end
+        
         function out = binDFF(obj,heading,data)
             bin_edges = -180:obj.bin_width:180; % Because alpha is [-180,180];
             groups = discretize(heading,bin_edges);
