@@ -172,7 +172,7 @@ classdef NeurotarDataExtractor < handle
             time  = cell2mat(behaviour_data(3:end, 2));
             zones = cell2mat(behaviour_data(2:end, 10));
             
-            obj.extractedData.addData('X','Y','r','phi','alpha','omega','speed','time','zones');
+            obj.extractedData.add('X','Y','r','phi','alpha','omega','speed','time','zones');
         end
         
     end
