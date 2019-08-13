@@ -112,6 +112,18 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             obj.plottingData = DataObject();
         end
         
+        function [data,floating] = removeStill(obj,data,floating,speed_threshold)
+            if nargin < 2
+                data = obj.initData;
+                floating = obj.initFloating;
+            end
+            
+            if nargin < 4
+                speed_threshold = 10; % Default
+            end
+            
+            isTooSlow = floating.speed < speed_threshold;
+            
         function out = detectCells(obj,data)
             for ii = 1:size(data,1)
                 otest(ii) = circ_otest(data(ii,:)); %nonuniformity

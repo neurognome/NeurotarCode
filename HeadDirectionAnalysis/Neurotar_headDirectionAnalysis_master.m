@@ -10,7 +10,6 @@ load('D:\Code\NeurotarCode\SampleData\TSeries-07242019-1414-001_registered_data.
 n = NeurotarDataExtractor();
 n.saveData;
 
-
 hdp = HeadDirectionPreprocessor(data,floating);
 %hdp.setForceTimeLock(true);
 %hdp.processData;
@@ -18,14 +17,13 @@ hdp = HeadDirectionPreprocessor(data,floating);
 hda = HeadDirectionAnalysis(hdp.workingData.get('data'), hdp.workingData.get('floating'));
 
 % If you want use raw alpha, but not recommended...
-hda.setHeadingFlag(false);
+hda.setHeadingFlag(true);
 
 
 %% Analysis 
 binned_DFF = hda.binDFF(hda.workingData.get('heading'),hda.workingData.get('DFF')); % bin DFF
 DFF = hda.workingData.get('DFF');
-% Not currently running below because I don't have the toolbox
-%isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
+isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
 pref_dir = hda.getPreferredDirection(binned_DFF); % Get preferred directions
 
 hda.analysisData.add('binned_DFF','pref_dir');
@@ -38,8 +36,13 @@ hda.analysisData.add('binned_DFF','pref_dir');
 isHeadDir = headDirIdx > 0.2;
 
 
-% what's the best way to determine that? Idk we'll work on this...
 
+quadrantCorrelations = hda.analysisData.get('quadrantCorrelations');
+
+save preliminary_headDirAnalysis.mat pref_dir headDirIdx quadrantCorrelations binned_DFF
+
+% what's the best way to determine that? Idk we'll work on this...
+%{
 % Visualizing all the cells first...
 hda.setData(binned_DFF);
 
@@ -52,6 +55,4 @@ hda.polarPlot(c,'LineWidth',5);
 title(sprintf('Cell #%d, prefdir: %0.1f',ii,pref_dir(c)))
 pause
 end
-
-
 
