@@ -76,8 +76,16 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             obj.analysisData.add('quadrantCorrelations');
             
             % must exceed..0.2 for their data
-            idx = mean(quadrantCorrelations,2);
-            
+            idx = quadrantCorrelations;            
+        end
+
+        function shuffleHeadDirectionIdx(obj,data,floating)
+            if nargin == 0
+                data = obj.workingData.get('DFF')
+                floating = obj.workingData.get('heading')
+            end
+
+            % where should we shuffle these data?
         end
 %% Setters and Getters       
         function setHeadingFlag(obj,val)
