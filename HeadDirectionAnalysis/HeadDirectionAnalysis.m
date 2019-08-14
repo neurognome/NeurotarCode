@@ -8,10 +8,8 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     end
     
     properties
-        workingData
-        analysisData
-        plottingData
-        
+        DFF
+        heading
         fixHeadingFlag logical = 1;
     end
     
@@ -25,23 +23,20 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
         function obj = HeadDirectionAnalysis(data,floating)
             obj.initData = data;
             obj.initFloating = floating;
-            
-            obj.initializeData(data,floating);
+            [obj.DFF,obj.heading] = obj.initializeData(data,floating);
         end
-
+        
         function findHeadDirectionCells(obj) % just a wrapper for full analysis later
         end
         
-        function [idx] = calculateHeadDirectionIdx(obj,data,heading)
+        function [quadrantCorrelations] = calculateHeadDirectionIdx(obj,data,heading)
             % the following analyses are based on Giacomo et al 2017, in
-            % current biology... 
+            % current biology...
             if nargin < 2
-            heading = obj.workingData.get('heading');
-            data    = obj.workingData.get('DFF'); % spkes hopfeully
+                heading = obj.heading;
+                data    = obj.data; % spkes hopfeully
             end
-            % divide the time series into quardrants
-
-          %  binned_DFF = hda.binDFF(heading,data); % bin DFF
+            
             totalDur = length(heading);
             quadrantLength = round(totalDur./4);
             
@@ -58,36 +53,29 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             
             % Calculate the head direction preference per quadrant
             for q = 1:4
-                q_binnedDFF(:,:,q) = obj.binDFF(q_heading{q},q_data{q});
+                q_binnedDFF(:,:,q) = obj.binDFF(q_data{q},q_heading{q});
             end
             
             % compare quadrants in pairwise (1-1,1-2,1-3,1-4,2-3,2-4,3-4)
             possibleCombinations = nchoosek(1:4,2);
             
             for c = 1:size(data,1)
-            for ii = 1:size(possibleCombinations,1)
-                quadrantCorrelations(c,ii) = corr(q_binnedDFF(c,:,possibleCombinations(ii,1))',q_binnedDFF(c,:,possibleCombinations(ii,2))');
+                for ii = 1:size(possibleCombinations,1)
+                    quadrantCorrelations(c,ii) = corr(q_binnedDFF(c,:,possibleCombinations(ii,1))',q_binnedDFF(c,:,possibleCombinations(ii,2))');
+                end
             end
-            end
-           
+            
             % Mean of all comparisons is the directional stability of
             % correlations
-           
-            obj.analysisData.add('quadrantCorrelations');
             
             % must exceed..0.2 for their data
-            idx = quadrantCorrelations;            
         end
-
+        
         function shuffleHeadDirectionIdx(obj,data,floating)
-            if nargin == 0
-                data = obj.workingData.get('DFF')
-                floating = obj.workingData.get('heading')
-            end
-
+            
             % where should we shuffle these data?
         end
-%% Setters and Getters       
+        %% Setters and Getters
         function setHeadingFlag(obj,val)
             obj.fixHeadingFlag = val;
             obj.initializeData(obj.initData,obj.initFloating);
@@ -96,7 +84,7 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     
     
     methods (Access = public)
-        function initializeData(obj,data,floating)
+        function [DFF,heading] = initializeData(obj,data,floating)
             try % temporarily to account of spikeInferenc/noSpikeInference
                 DFF = data.spikes;
             catch
@@ -114,10 +102,6 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             else
                 heading = alpha;
             end
-            
-            obj.workingData  = DataObject('DFF','X','Y','heading','phi','r');
-            obj.analysisData = DataObject();
-            obj.plottingData = DataObject();
         end
         
         function [data,floating] = removeStill(obj,data,floating,speed_threshold)
@@ -131,13 +115,14 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             end
             
             isTooSlow = floating.speed < speed_threshold;
-            
+        end
+        
         function out = detectCells(obj,data)
             for ii = 1:size(data,1)
                 otest(ii) = circ_otest(data(ii,:)); %nonuniformity
                 if otest(ii) < obj.thresh
                     rtest(ii) = circ_rtest(data(ii,:)); %unimodality
-                else 
+                else
                     rtest(ii) = 1;
                 end
             end
@@ -146,15 +131,15 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
         
         function out = getPreferredDirection(obj,data)
             fprintf('Getting preferred directions \n');
-           for ii = 1:size(data,1)
-              % lm = fit([1:length(data(ii,:))]',data(ii,:)','gauss1','Upper',[Inf 36 Inf], 'Lower', [-Inf 0 -Inf]);
-             %  out(ii) = lm.b1;
-             [~,out(ii)] = max(data(ii,:)); 
-           end  
-           out=out*obj.bin_width - obj.bin_width; % convert to degrees, accounting for the extra 10 you get because -180:10:180
+            for ii = 1:size(data,1)
+                % lm = fit([1:length(data(ii,:))]',data(ii,:)','gauss1','Upper',[Inf 36 Inf], 'Lower', [-Inf 0 -Inf]);
+                %  out(ii) = lm.b1;
+                [~,out(ii)] = max(data(ii,:));
+            end
+            out=out*obj.bin_width - obj.bin_width; % convert to degrees, accounting for the extra 10 you get because -180:10:180
         end
         
-        function out = binDFF(obj,heading,data)
+        function out = binDFF(obj,data,heading)
             bin_edges = -180:obj.bin_width:180; % Because alpha is [-180,180];
             groups = discretize(heading,bin_edges);
             u_groups = unique(groups);
@@ -169,18 +154,19 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
             h = 2.*asind((r.*sind(alpha - phi))./(2.*obj.radius)) + alpha;
             h = wrapTo180(h); % to account for passing 180 on the thing
         end
-
+        
     end
     
 end
 
-        
-        %% Major analysis code 
-        
-        % when you're done messing around in the script, you can incorporate as a big thing, but until then, run the individual functions in the script ok
-        
-        %{
-        function findHeadDirectionCells(obj)
+
+
+%% Major analysis code
+
+% when you're done messing around in the script, you can incorporate as a big thing, but until then, run the individual functions in the script ok
+
+%{
+function findHeadDirectionCells(obj)
             
             binned_DFF = obj.binDFF(obj.workingData.get('heading'),obj.workingData.get('DFF'));
             obj.analysisData.add(binned_DFF);
@@ -194,5 +180,5 @@ end
             obj.analysisData.add(isDirectionTuned);
 
         end
-        %}
+%}
 

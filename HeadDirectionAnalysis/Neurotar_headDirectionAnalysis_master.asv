@@ -23,15 +23,16 @@ hda.setHeadingFlag(true);
 
 
 %% Preprocessing 
-binned_DFF = hda.binDFF(hda.DFF, hda.heading); % bin DFF
-isDirectionTuned = hda.detectCells(hda.DFF); % Detect non-circularly uniform cells
+binned_DFF = hda.binDFF(hda.DFF, hda.floating); % bin DFF
+DFF = hda.workingData.get('DFF');
+isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
 pref_dir = hda.getPreferredDirection(binned_DFF); % Get preferred directions
 
 
 
 %% Working on better analysis
 % Current issue: not sure the best way to be able to figure out if they're actually "head directiony"
-[headDirIdx] = hda.calculateHeadDirectionIdx(hda.DFF,hda.heading);
+[headDirIdx] = hda.calculateHeadDirectionIdx();
 
 isHeadDirection = mean(headDirIdx,2) > 0.2;
 
