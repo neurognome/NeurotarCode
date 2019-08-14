@@ -16,27 +16,25 @@ classdef NeurotarPreProcessor < handle
     
     properties (SetAccess = protected) % I have this as SetAccess protected because I want to see if it happened
         ForceTimeLock logical = 0
-        workingData
     end
     
     methods
         
         function obj = NeurotarPreProcessor(data,floating) % contstructor
-            obj.workingData = DataObject();
-            obj.initData  = DataObject(data,floating);  % This stores the initial data away in case we need to revert to it
-            
-            % Initial methods
-            obj.processData(obj.initData.data,obj.initData.floating);
-            
-            
+            if nargin == 0
+                fprintf('Choose your data file: \n')
+                data = importdata(uigetfile('.mat'));
+                fprintf('Choose your stimulus file: \n')
+                floating = importdata(uigetfile('.mat'));
+            end
+            obj.initData.data  = data;  % This stores the initial data away in case we need to revert to it
+            obj.initData.floating = floating;
         end
         
-        function processData(obj,data,floating)
+        function [data, floating] = processData(obj,data,floating)
             if nargin < 2
                 data = obj.initData.data;
                 floating = obj.initData.floating;
-                
-                obj.workingData.reset();
             end
             
             time = obj.extractTime(floating);
@@ -50,8 +48,6 @@ classdef NeurotarPreProcessor < handle
             [data,floating] = obj.samplingFrequencyEqualizer(data,floating,time,isUniformSampling);
             
             obj.preprocessChecker(data,floating);
-            
-            obj.workingData = DataObject(data,floating);             % after all the processing steps, assign to working data. This can be called or further passed for more stuff if necessary..
         end
         
         function obj = setForceTimeLock(obj, val)
