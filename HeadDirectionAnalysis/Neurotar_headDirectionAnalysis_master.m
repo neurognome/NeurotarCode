@@ -20,7 +20,7 @@ hda = HeadDirectionAnalysis(data,floating);
 
 % If you want use raw alpha, but not recommended...
 hda.setHeadingFlag(true);
-
+[data,floating] = hda.removeStill(data,floating);
 
 %% Preprocessing 
 binned_DFF = hda.binDFF(hda.DFF, hda.heading); % bin DFF

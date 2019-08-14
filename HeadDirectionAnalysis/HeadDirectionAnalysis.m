@@ -8,7 +8,8 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     end
     
     properties
-        DFF
+        spike_flag logical
+        neural_data
         heading
         fixHeadingFlag logical = 1;
     end
@@ -23,7 +24,7 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
         function obj = HeadDirectionAnalysis(data,floating)
             obj.initData = data;
             obj.initFloating = floating;
-            [obj.DFF,obj.heading] = obj.initializeData(data,floating);
+            [obj.neural_data,obj.heading] = obj.initializeData(data,floating);
         end
         
         function findHeadDirectionCells(obj) % just a wrapper for full analysis later
@@ -84,12 +85,14 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     
     
     methods (Access = public)
-        function [DFF,heading] = initializeData(obj,data,floating)
+        function [neural_data,heading] = initializeData(obj,data,floating)
             try % temporarily to account of spikeInferenc/noSpikeInference
-                DFF = data.spikes;
+                neural_data = data.spikes;
+                obj.spike_flag = true;
             catch
                 fprintf('Not spike inferred, using DFF\n')
-                DFF = data.DFF;
+                neural_data = data.DFF;
+                obj.spike_flag = false;
             end
             X = floating.X;
             Y = floating.Y;
@@ -114,7 +117,23 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
                 speed_threshold = 10; % Default
             end
             
-            isTooSlow = floating.speed < speed_threshold;
+            isTooSlow = floating.speed < speed_threshold; % Find slow parts
+
+            floating_fields = fields(floating); % Get fields of floating
+
+            for ii = 1:length(floating_fields) % Cut it 
+                if ~strcmp(floating_fields{ii},'time') % don't mess with time
+                floating.(floating_fields{ii})(isTooSlow) = [];
+                end
+            end
+            
+            if obj.spike_flag
+                data.spikes(:,isTooSlow) = [];
+            else
+                data.DFF(:,isTooSlow) = [];
+            end
+            
+            [obj.neural_data,obj.heading] = obj.initializeData(data,floating);
         end
         
         function out = detectCells(obj,data)
