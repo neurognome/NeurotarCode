@@ -19,7 +19,14 @@ hdp = HeadDirectionPreprocessor(data,floating);
 hda = HeadDirectionAnalysis(data,floating);
 
 % If you want use raw alpha, but not recommended...
-hda.setHeadingFlag(false);
+
+hda.setHeadingFlag(true);
+[data,floating] = hda.removeStill(data,floating);
+
+%% Preprocessing 
+binned_DFF = hda.binDFF(hda.DFF, hda.heading); % bin DFF
+isDirectionTuned = hda.detectCells(hda.DFF); % Detect non-circularly uniform cells
+pref_dir = hda.getPreferredDirection(binned_DFF); % Get preferred directions
 
 %% Working on better analysis
 % Current issue: not sure the best way to be able to figure out if they're actually "head directiony"
