@@ -12,29 +12,28 @@ load('D:\Code\NeurotarCode\SampleData\TSeries-07242019-1414-001_registered_data.
 %n.saveData;
 
 hdp = HeadDirectionPreprocessor(data,floating);
-%hdp.setForceTimeLock(true);
+%hdp.setForceTimeLock(false);
 [data, floating] = hdp.processData;
 
 
 hda = HeadDirectionAnalysis(data,floating);
 
 % If you want use raw alpha, but not recommended...
-hda.setHeadingFlag(true);
+hda.setHeadingFlag(false);
 
 
 %% Preprocessing 
-binned_DFF = hda.binDFF(hda.DFF, hda.floating); % bin DFF
-DFF = hda.workingData.get('DFF');
-isDirectionTuned = hda.detectCells(DFF); % Detect non-circularly uniform cells
+binned_DFF = hda.binDFF(hda.DFF, hda.heading); % bin DFF
+isDirectionTuned = hda.detectCells(hda.DFF); % Detect non-circularly uniform cells
 pref_dir = hda.getPreferredDirection(binned_DFF); % Get preferred directions
 
 
 
 %% Working on better analysis
 % Current issue: not sure the best way to be able to figure out if they're actually "head directiony"
-[headDirIdx] = hda.calculateHeadDirectionIdx();
+[quadrantCorrelations,q_binnedDFF] = hda.calculateHeadDirectionIdx();
 
-isHeadDirection = mean(headDirIdx,2) > 0.2;
+isHeadDirection = mean(quadrant,2) > 0.2;
 
 %% Visualization
 % Visualizing all the cells first...

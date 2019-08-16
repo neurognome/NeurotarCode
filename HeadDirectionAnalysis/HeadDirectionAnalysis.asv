@@ -2,7 +2,7 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     
     % Make sure you have the circular statistics toolbox
     properties (Constant = true)
-        radius    double = 120; % Radius of the arena
+        radius    double = [120]; % Radius of the arena
     end
     
     properties
@@ -22,10 +22,10 @@ classdef HeadDirectionAnalysis < RawDataPlots & SummaryDataPlots
     
     methods
         
-        function obj = HeadDirectionAnalysis(data, floating)
+        function obj = HeadDirectionAnalysis(data,floating)
             obj.initData = data;
             obj.initFloating = floating;
-            [obj.data, obj.heading] = obj.initializeData(data, floating);
+            [obj.data,obj.heading] = obj.initializeData(data,floating);
         end
         
         function findHeadDirectionCells(obj) % just a wrapper for full analysis later
