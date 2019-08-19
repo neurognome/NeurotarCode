@@ -26,9 +26,3 @@ is_head_direction = a.mean_quadrant_correlation > 0.2
 print('Num tuned cells: {}'.format(numpy.sum(is_head_direction)))
 [head_idx] = numpy.where(is_head_direction)
 print('Cell IDs: {}'.format(head_idx))
-# # what else do we need here...
-# # %% We don't run the stimulus time equalization because matlab and python use different resampling algorithms
-# # data_reshaped = np.zeros((alpha.shape[1], data.shape[1]))
-# # for ii in range(data.shape[1]):
-# #     print(ii)
-# #     data_reshaped[:, ii] = scipy.signal.resample(data[:, ii], alpha.shape[1]) #

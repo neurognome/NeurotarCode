@@ -113,7 +113,7 @@ class Analyzer:
             new_values = np.zeros(len(neurotar_matched_indices))
             for idx, nt in enumerate(neurotar_matched_indices):
                 new_values[idx] = np.mean(  # // for floor, makes it an int
-                    curr_value[np.max([0, nt - avg_window//2]):np.min([nt + avg_window//2, len(curr_value)]) + 1])
+                    curr_value[np.max([0, nt - avg_window // 2]):np.min([nt + avg_window // 2, len(curr_value)]) + 1])
             self.floating[key] = new_values
         print('     Finished!')
 
