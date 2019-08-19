@@ -6,27 +6,18 @@ def separate_data(data, n_sections):
     section_length = round(len(data) / n_sections)
     data_sectioned = []
     for s in range(n_sections):
-        if s == n_sections - 1:
-            data_sectioned.append(data[s * section_length:])
-        else:
-            data_sectioned.append(data[s * section_length:(s + 1) * section_length])
+        data_sectioned.append(data[s * section_length:max([-1, (s + 1) * section_length])])
     return data_sectioned
 
 
 def bin_data(data, heading, bin_edges):
-    n_bins = len(bin_edges)
-    bin_counts = np.zeros(n_bins)
+    n_bins = len(bin_edges) - 1
     binned_data = np.zeros((data.shape[1], n_bins))
+    heading_groups = np.digitize(heading, bin_edges)
+    u_heading = np.unique(heading_groups)
     for c in range(data.shape[1]):  # Going through the cells...
-        for ii in range(n_bins):
-            if ii == len(bin_edges) - 1:  # Because python 0 index, so the last one is equal to length - 1
-                is_currbin = heading > bin_edges[ii]  # Anything greater than the last bin, just go for it
-                bin_counts[ii] = sum(is_currbin)  # Anything greater than the last bin, just go for it
-            else:
-                is_currbin = np.logical_and(heading > bin_edges[ii], heading < bin_edges[ii + 1])
-                bin_counts[ii] = sum(is_currbin)
-
-                binned_data[c, ii] = np.mean(data[:, c][np.squeeze(is_currbin)])
+        for u in u_heading:
+            binned_data[c, u - 1] = np.mean(data[:, c][u == heading_groups])  # subtract 1 from u, to convert to idx
     return binned_data
 
 
@@ -71,12 +62,12 @@ class Analyzer:
         alpha = alpha.T
         spikes_section = separate_data(spikes, n_sections)
         alpha_section = separate_data(alpha, n_sections)
-        bin_edges = range(-180, 180, bin_size)
+        bin_edges = np.array(range(-180, 180 + 1, bin_size))  # Added 1 to the upper limit, so it's included
 
         print('     Binning neurotar data; bin size: {} degrees'.format(bin_size))
         num_cells = spikes.shape[1]
         combos = list(combinations(range(n_sections), 2))  # Get possible combinations
-        binned_data = np.zeros([n_sections, len(bin_edges), num_cells])
+        binned_data = np.zeros([n_sections, len(bin_edges)-1, num_cells])  # -1 temporarily...
         for s in range(n_sections):
             binned_data[s, :, :] = bin_data(spikes_section[s], alpha_section[s], bin_edges).T
         cc = np.zeros([len(combos), num_cells])  # Creating a huge list, one per cell, this is a 2D list essentially
