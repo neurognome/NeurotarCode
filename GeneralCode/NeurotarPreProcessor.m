@@ -61,7 +61,7 @@ classdef NeurotarPreProcessor < handle
     
     
     methods (Access = protected)
-        function time = extractTime(obj,floating)
+        function time = extractTime(obj, floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
             time = time(:, [4,5,7,8,10:12]); % this is assuming none of recording last more than an hour
             time = time .* [6 * 10^5, 6 * 10^4, 10^4, 10^3, 10^2, 10^1, 1];
@@ -81,6 +81,7 @@ classdef NeurotarPreProcessor < handle
                 for ii =1:size(data.DFF,1)
                     temp(ii,:) = resample(data.DFF(ii,:),size(floating.time,1)+1,size(data.DFF,2));
                 end
+                
                 data.DFF = temp;
                 
                 if isfield(data,'spikes')
@@ -100,6 +101,9 @@ classdef NeurotarPreProcessor < handle
                 neurotar_matched_indices = zeros(1, length(twoP_sampled_times));
                 for tt = 1:length(twoP_sampled_times)
                     [ ~, neurotar_matched_indices(tt) ] = min(abs(time - twoP_sampled_times(tt)));
+                   %timeDiff = round(abs(time - twoP_sampled_times(tt)), 5);
+                  % neurotar_matched_indices(tt) = min(find(timeDiff == min(timeDiff))); % These lines of code are just 
+                   % so that we can match python. See the python version for details
                 end
                 
                 floating.X     = floating.X(neurotar_matched_indices);
@@ -114,7 +118,7 @@ classdef NeurotarPreProcessor < handle
             
         end
         
-        function preprocessChecker(obj,data,floating)
+        function preprocessChecker(obj, data,floating)
             if length(data.DFF) == length(floating.X)
                 fprintf('Your data are preprocessed, ready to go...\n')
             else
