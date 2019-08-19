@@ -23,7 +23,7 @@ def bin_data(data, heading, bin_edges):
 
 class Analyzer:
     # Default class attributes
-    _radius = 120  # Default cage radius
+    __radius = 120  # Default cage radius
 
     def __init__(self, data, floating):
         self.data = dict(data)  # We call all as "dict" so that we don't affect the variables outside... make a copy
@@ -118,7 +118,7 @@ class Analyzer:
         print('     Finished!')
 
     def extract_time(self):
-        [time_char] = self.__initialize_data(self.floating, 'time')
+        [time_char] = self.__initialize_data(self.floating, 'time')  # Brackets here convert the tuple to list
         time = np.array([chr(x) for x in np.nditer(time_char)]).reshape(time_char.shape[0], time_char.shape[1])
         time = time[[3, 4, 6, 7, 9, 10, 11], :]  # this is assuming none of recording last more than an hour
         time = np.array([int(x) for x in np.nditer(time)]).reshape(time.shape[0], time.shape[1])
