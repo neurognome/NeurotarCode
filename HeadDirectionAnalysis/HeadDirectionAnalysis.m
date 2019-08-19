@@ -48,8 +48,10 @@ classdef HeadDirectionAnalysis < handle
             q_data = cell(numSections, 1);
             q_heading = cell(numSections, 1);
             for q = 1:numSections % 4 quadrants...
-                    q_data{q}    = neural_data(:,(q - 1) * sectionLength + 1 : min(q*sectionLength, length(neural_data)));
-                    q_heading{q} = heading((q - 1) * sectionLength + 1 : min(q*sectionLength, length(heading)));
+                    q_data{q}    = neural_data(...
+                            :,(q - 1) * sectionLength + 1 : min(q*sectionLength, length(neural_data)));
+                    q_heading{q} = heading(...
+                            (q - 1) * sectionLength + 1 : min(q*sectionLength, length(heading)));
             end
             q_binnedDFF = zeros(size(neural_data, 1), length(-180:obj.binWidth:180)-1, numSections);
             % Calculate the head direction preference per quadrant
@@ -59,8 +61,8 @@ classdef HeadDirectionAnalysis < handle
             % compare quadrants in pairwise (1-1,1-2,1-3,1-4,2-3,2-4,3-4)
             possibleCombinations = nchoosek(1:4, 2);
             quadrantCorrelations = zeros(size(neural_data, 1), size(possibleCombinations, 1));
-            for c = 1:size(neural_data, 1)
-                for ii = 1:size(possibleCombinations, 1)
+            for ii = 1:size(possibleCombinations, 1)
+                for c = 1:size(neural_data, 1)
                     quadrantCorrelations(c, ii) = corr(...
                         q_binnedDFF(c, :, possibleCombinations(ii,1))',...
                         q_binnedDFF(c, :, possibleCombinations(ii, 2))');
@@ -137,8 +139,9 @@ classdef HeadDirectionAnalysis < handle
             binEdges = -180:obj.binWidth:180; % Because alpha is [-180,180];
             groups = discretize(heading, binEdges);
             u_groups = unique(groups);
-            for c = 1:size(data, 1)
-                for bin = 1:length(u_groups)
+            out = zeros(size(data,1), length(u_groups));
+            for bin = 1:length(u_groups)
+                for c = 1:size(data, 1)
                     out(c, bin) = mean(data(c, groups == u_groups(bin)));
                 end
             end
