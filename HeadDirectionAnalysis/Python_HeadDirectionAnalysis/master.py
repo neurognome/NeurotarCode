@@ -13,6 +13,7 @@ data = struct2dict(
     'D:/_HeadDirectionNeurotarData/190731_JBA_MJG022_RSC_150/TSeries-07312019-1437-001/TSeries-07312019-1437-001_registered_data.mat')
 floating = struct2dict(
     'D:/_HeadDirectionNeurotarData/190731_JBA_MJG022_RSC_150/TSeries-07312019-1437-001/floating_data_MJG022_07_31_session1.mat')
+
 # %% Loading real data to try...
 # %% Initialize the analyzer
 a = analyzer_module.Analyzer(data, floating)
@@ -30,9 +31,10 @@ print('Num tuned cells: {}'.format(numpy.sum(is_head_direction)))
 [head_idx] = numpy.where(is_head_direction)
 print('Cell IDs: {}'.format(head_idx))
 
+# %%
+a.get_preferred_direction()
 # %% Visualization
 meaned_data = numpy.mean(a.binned_data, axis=0)
-
 for col in range(meaned_data.shape[1]):
     if is_head_direction[col]:
         plt.plot(meaned_data[:, col])

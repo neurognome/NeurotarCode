@@ -10,17 +10,6 @@ def separate_data(data, n_sections):
     return data_sectioned
 
 
-def bin_data(data, heading, bin_edges):
-    n_bins = len(bin_edges) - 1
-    binned_data = np.zeros((data.shape[1], n_bins))
-    heading_groups = np.digitize(heading, bin_edges)
-    u_heading = np.unique(heading_groups)
-    for c in range(data.shape[1]):  # Going through the cells...
-        for u in u_heading:
-            binned_data[c, u - 1] = np.mean(data[:, c][u == heading_groups])  # subtract 1 from u, to convert to idx
-    return binned_data
-
-
 class Analyzer:
     # Default class attributes
     __radius = 120  # Default cage radius
@@ -33,10 +22,32 @@ class Analyzer:
 
         self._isMoving = None
         self._remove_slow_flag = False
+        self._bin_size = 20
 
         self.mean_quadrant_correlation = None
         self.binned_data = None
         self.isCorrelated = None
+        self.direction_info = None
+
+    def get_preferred_direction(self, method='vectorsum'):
+        self.binned_data = self.__bin_data()  # bin the defaults
+        if method is 'max':
+            self.direction_info = [np.argmax(self.binned_data, axis=1), np.max(self.binned_data, axis=1)]
+        elif method is 'vectorsum':
+            theta = np.linspace(0, 2 * np.pi, self.binned_data.shape[1])
+            mag = []
+            ang = []
+            for row in self.binned_data:
+                h = np.sum(row * np.cos(theta))
+                v = np.sum(row * np.sin(theta))
+                m = np.arctan(v / h)
+                a = np.sqrt(h ** 2 + v ** 2)
+                a = a + np.pi if h < 0 else a  # Correcting quadrant errors
+                mag.append(m)
+                ang.append(a)
+            self.direction_info = [ang, mag]
+        else:
+            print('Invalid method called, choose vectorsum or max')
 
     def find_moving_samples(self, speed_threshold=10, peak_width=5, search_window=10):
         print('Extracting only moving frames:')
@@ -55,7 +66,9 @@ class Analyzer:
         self._remove_slow_flag = True
         print('     Finished!')
 
-    def calculate_head_direction(self, n_sections=4, bin_size=20):
+    def calculate_head_direction(self, n_sections=4, bin_size=None):
+        if bin_size is None:
+            bin_size = self._bin_size
         print('Calculating head direction:')
         # Initialize
         [spikes] = self.__initialize_data(self.data, 'spikes')  # The brackets here request Python to unpack the tuple
@@ -68,15 +81,15 @@ class Analyzer:
         print('     Binning neurotar data; bin size: {} degrees'.format(bin_size))
         num_cells = spikes.shape[1]
         combos = list(combinations(range(n_sections), 2))  # Get possible combinations
-        self.binned_data = np.zeros([n_sections, len(bin_edges)-1, num_cells])  # -1 temporarily...
+        q_binned_data = np.zeros([n_sections, len(bin_edges)-1, num_cells])  # -1 temporarily...
         for s in range(n_sections):
-            self.binned_data[s, :, :] = bin_data(spikes_section[s], alpha_section[s], bin_edges).T
+            q_binned_data[s, :, :] = self.__bin_data(spikes_section[s], alpha_section[s], bin_edges).T
         cc = np.zeros([len(combos), num_cells])  # Creating a huge list, one per cell, this is a 2D list essentially
 
         print('     Calculating pairwise correlations between quadrants')
         for idx, c in enumerate(combos):
             for cell in range(spikes.shape[1]):
-                temp = np.corrcoef(self.binned_data[c[0], :, cell], self.binned_data[c[1], :, cell])
+                temp = np.corrcoef(q_binned_data[c[0], :, cell], q_binned_data[c[1], :, cell])
                 cc[idx, cell] = temp[0, 1]
         self.mean_quadrant_correlation = np.mean(cc, axis=0)  # Convert to array for easy meaning across dimensions
         print('     Finished!')
@@ -90,7 +103,7 @@ class Analyzer:
             self.reset()  # in case you already ran this, it'll reset data to initial
             print('     Data reset to initial data')
         print('     Extracting time from neurotar data')
-        time = self.extract_time()
+        time = self.__extract_time()
 
         twoP_sampled_times = np.arange(1 / fs, (nFrames + 1) / fs, 1 / fs)  # Adding 1 for the total length
         neurotar_matched_indices = np.zeros([len(twoP_sampled_times)], dtype=int)
@@ -118,19 +131,19 @@ class Analyzer:
             self.floating[key] = new_values
         print('     Finished!')
 
-    def extract_time(self):
+    def reset(self):
+        self.data = self._initData.copy()
+        self.floating = self._initFloating.copy()
+
+    def __extract_time(self):
         [time_char] = self.__initialize_data(self.floating, 'time')  # Brackets here convert the tuple to list
         time = np.array([chr(x) for x in np.nditer(time_char)]).reshape(time_char.shape[0], time_char.shape[1])
         time = time[[3, 4, 6, 7, 9, 10, 11], :]  # this is assuming none of recording last more than an hour
         time = np.array([int(x) for x in np.nditer(time)]).reshape(time.shape[0], time.shape[1])
         # below is the ternary version of a for loop, going through the rows. transpose time so it works
-        time = [np.multiply(row, [6 * 10**5, 6 * 10**4, 10**4, 10**3, 10**2, 10**1, 1]) for row in time.T]
+        time = [np.multiply(row, [6 * 10 ** 5, 6 * 10 ** 4, 10 ** 4, 10 ** 3, 10 ** 2, 10 ** 1, 1]) for row in time.T]
         time = np.sum(time, axis=1) / 1000
         return time
-
-    def reset(self):
-        self.data = self._initData.copy()
-        self.floating = self._initFloating.copy()
 
     def __initialize_data(self, datastruct, *argv):
         out = []
@@ -144,3 +157,21 @@ class Analyzer:
             else:
                 out.append(data)
         return out
+
+    def __bin_data(self, data=None, heading=None, bin_edges=None):
+        # Setting default arguments for when you don't supply anything
+        if data is None:
+            [data] = self.__initialize_data(self.data, 'spikes')
+        if heading is None:
+            [heading] = self.__initialize_data(self.floating, 'alpha')
+        if bin_edges is None:
+            bin_edges = range(-180, 181, self._bin_size)
+        n_bins = len(bin_edges) - 1
+        q_binned_data = np.zeros((data.shape[1], n_bins))
+        heading_groups = np.digitize(heading, bin_edges)
+        u_heading = np.unique(heading_groups)
+        for c in range(data.shape[1]):  # Going through the cells...
+            for u in u_heading:
+                q_binned_data[c, u - 1] = np.mean(
+                    data[:, c][u == heading_groups])  # subtract 1 from u, to convert to idx
+        return q_binned_data
