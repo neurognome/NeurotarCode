@@ -35,6 +35,7 @@ class Analyzer:
         self._remove_slow_flag = False
 
         self.mean_quadrant_correlation = None
+        self.binned_data = None
         self.isCorrelated = None
 
     def find_moving_samples(self, speed_threshold=10, peak_width=5, search_window=10):
@@ -67,15 +68,15 @@ class Analyzer:
         print('     Binning neurotar data; bin size: {} degrees'.format(bin_size))
         num_cells = spikes.shape[1]
         combos = list(combinations(range(n_sections), 2))  # Get possible combinations
-        binned_data = np.zeros([n_sections, len(bin_edges)-1, num_cells])  # -1 temporarily...
+        self.binned_data = np.zeros([n_sections, len(bin_edges)-1, num_cells])  # -1 temporarily...
         for s in range(n_sections):
-            binned_data[s, :, :] = bin_data(spikes_section[s], alpha_section[s], bin_edges).T
+            self.binned_data[s, :, :] = bin_data(spikes_section[s], alpha_section[s], bin_edges).T
         cc = np.zeros([len(combos), num_cells])  # Creating a huge list, one per cell, this is a 2D list essentially
 
         print('     Calculating pairwise correlations between quadrants')
         for idx, c in enumerate(combos):
             for cell in range(spikes.shape[1]):
-                temp = np.corrcoef(binned_data[c[0], :, cell], binned_data[c[1], :, cell])
+                temp = np.corrcoef(self.binned_data[c[0], :, cell], self.binned_data[c[1], :, cell])
                 cc[idx, cell] = temp[0, 1]
         self.mean_quadrant_correlation = np.mean(cc, axis=0)  # Convert to array for easy meaning across dimensions
         print('     Finished!')
