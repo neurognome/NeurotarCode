@@ -19,7 +19,7 @@ load('D:\Code\NeurotarCode\SampleData\PlaceCells\TSeries-07242019-1414-001_regis
 hda = HeadDirectionAnalysis(data, floating);
 
 % If you want use raw alpha, but not recommended...
-hda.find_moving_samples();
+hda.remove_moving_samples();
 
 %% Working on better analysis
 % Current issue: not sure the best way to be able to figure out if they're actually "head directiony"

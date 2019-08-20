@@ -38,7 +38,7 @@ classdef HeadDirectionAnalysis < handle
             if nargin < 2
                 numSections = 4;
             end
-          
+            
             neural_data = obj.initializeData(obj.data,'spikes');
             heading     = obj.initializeData(obj.floating,'heading');
             
@@ -71,7 +71,7 @@ classdef HeadDirectionAnalysis < handle
             obj.meanQuadrantCorrelation = mean(quadrantCorrelations,2);
         end
         
-        function remove_moving_samples(obj, speed_threshold, peakWidth, searchWindow)
+        function find_moving_samples(obj, speed_threshold, peakWidth, searchWindow)
             if nargin < 2
                 speed_threshold = 10; % Default
             end
@@ -139,16 +139,15 @@ classdef HeadDirectionAnalysis < handle
             binEdges = -180:obj.binWidth:180; % Because alpha is [-180,180];
             groups = discretize(heading, binEdges);
             u_groups = unique(groups);
-            out = zeros(size(data,1), length(u_groups));
-            for bin = 1:length(u_groups)
-                for c = 1:size(data, 1)
+            for c = 1:size(data, 1)
+                for bin = 1:length(u_groups)
                     out(c, bin) = mean(data(c, groups == u_groups(bin)));
                 end
             end
         end
         
-        function h = calculate_heading(obj, r, phi,alpha)
-            h = 2 .* asind((r .* sind(alpha - phi)) ./ (2 .* obj.radius)) + alpha;
+        function h = calculate_heading(obj,r,phi,alpha)
+            h = 2.*asind((r.*sind(alpha - phi))./(2.*obj.radius)) + alpha;
             h = wrapTo180(h); % to account for passing 180 on the thing
         end
         
