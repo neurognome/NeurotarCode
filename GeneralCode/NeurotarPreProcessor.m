@@ -7,55 +7,85 @@ classdef NeurotarPreProcessor < handle
     
     
     properties (Constant = true)
-        variance_threshold(1,1) double = 0.001; % What threshold of variance within the neurotar sampling rate which is considered to be "good enough"
+        variance_threshold double = 0.001; % What threshold of variance within the neurotar sampling rate which is considered to be "good enough"
     end
     
     properties (Access = protected)
+        data 
+        floating
+        
         initData
+        initFloating
     end
     
     properties (SetAccess = protected) % I have this as SetAccess protected because I want to see if it happened
-        ForceTimeLock logical = 0
-    end
+        forceTimeLock logical = 0
+        averageWindow double = 0; % Window for averaging for time lock stimulus
+   end
     
     methods
         
         function obj = NeurotarPreProcessor(data,floating) % contstructor
+            
             if nargin == 0
                 fprintf('Choose your data file: \n')
                 data = importdata(uigetfile('.mat'));
                 fprintf('Choose your stimulus file: \n')
                 floating = importdata(uigetfile('.mat'));
             end
-            obj.initData.data  = data;  % This stores the initial data away in case we need to revert to it
-            obj.initData.floating = floating;
+            obj.data = data;
+            obj.floating = floating;
+            
+            obj.initData  = data;  % This stores the initial data away in case we need to revert to it
+            obj.initFloating = floating;
         end
         
-        function [data, floating] = processData(obj,data,floating)
-            if nargin < 2
-                data = obj.initData.data;
-                floating = obj.initData.floating;
-            end
+        function [data, floating] = processData(obj, averageWindow)    
+            if exist('averageWindow', 'var')  % If supplied average window, else default
+               obj.setAverageWindow(averageWindow);
+            end 
             
-            time = obj.extractTime(floating);
+            time = obj.extractTime(obj.floating);  % Extract times from neurotar
             
-            if obj.ForceTimeLock
+            if obj.forceTimeLock  % Upsample DFF or downsample neurotar? This forces downsampling
                 isUniformSampling = false;
             else
                 isUniformSampling = obj.checkSamplingRate(time);
             end
             
-            [data,floating] = obj.samplingFrequencyEqualizer(data,floating,time,isUniformSampling);
+            obj.equalizeFs(time, isUniformSampling);
             
-            obj.preprocessChecker(data,floating);
+            obj.preprocessChecker();  % Confirming everything worked by checking lengths against each other
+            
+            data = obj.getData();
+            floating = obj.getFloating();
+        end
+        
+        function reset(obj)
+            obj.data = obj.initData;
+            obj.floating = obj.initFloating;
+            fprintf('Data reset to initial values/n')
+        end
+        
+        %% Getters n Setters
+        function setAverageWindow(obj, win)
+            if mod(win, 2) == 1
+                fprintf('Window must be even, adjusted: %d --> %d\n', win, win - 1);
+                win = win - 1;
+            end
+            obj.averageWindow = win;
         end
         
         function obj = setForceTimeLock(obj, val)
-            obj.ForceTimeLock = val;
+            obj.forceTimeLock = val;
         end
         
-        function out = getInitData(obj)
-            out = obj.initData.data;
+        function out = getData(obj)
+            out = obj.data;
+        end
+        
+        function out = getFloating(obj)
+            out = obj.floating;
         end
     end
     
@@ -74,52 +104,62 @@ classdef NeurotarPreProcessor < handle
             isUniform = var(deltaTime) < obj.variance_threshold;
         end
         
-        function [data,floating] = samplingFrequencyEqualizer(obj,data,floating,time,isUniform)
+        function equalizeFs(obj, time, isUniform)
             if isUniform
                 fprintf('Your sampling rate is even, upsampling DFF to the neurotar frequency...\n')
                 
-                for ii =1:size(data.DFF,1)
-                    temp(ii,:) = resample(data.DFF(ii,:),size(floating.time,1)+1,size(data.DFF,2));
+                for ii =1:size(obj.data.DFF,1)
+                    obj.data.DFF(ii,:) = resample(obj.data.DFF(ii,:),size(obj.floating.time,1)+1,size(obj.data.DFF,2));
                 end
-                
-                data.DFF = temp;
-                
-                if isfield(data,'spikes')
-                    for ii =1:size(data.spikes,1)
-                        temp2(ii,:) = resample(data.spikes(ii,:),size(floating.time,1)+1,size(data.spikes,2));
+                                
+                if isfield(obj.data,'spikes')
+                    for ii =1:size(obj.data.spikes,1)
+                        obj.data.spikes(ii,:) = resample(obj.data.spikes(ii,:),size(obj.floating.time,1)+1,size(obj.data.spikes,2));
                     end
-                    data.spikes = temp2;
                 end
                 
             else
-                if obj.ForceTimeLock
+                if obj.forceTimeLock
                     fprintf('Forced to lock to stimulus time, not recommended... \n')
                 else
                     fprintf('Your sampling rate is too uneven, subsampling neurotar data to match DFF... \n')
                 end
-                twoP_sampled_times = 1/data.frameRate:1/data.frameRate:(data.numFrames / data.frameRate);
+                twoP_sampled_times = 1/obj.data.frameRate:1/obj.data.frameRate:(obj.data.numFrames / obj.data.frameRate);
                 neurotar_matched_indices = zeros(1, length(twoP_sampled_times));
                 for tt = 1:length(twoP_sampled_times)
                     [ ~, neurotar_matched_indices(tt) ] = min(abs(time - twoP_sampled_times(tt)));
+                    
                    %timeDiff = round(abs(time - twoP_sampled_times(tt)), 5);
                   % neurotar_matched_indices(tt) = min(find(timeDiff == min(timeDiff))); % These lines of code are just 
                    % so that we can match python. See the python version for details
                 end
-                
-                floating.X     = floating.X(neurotar_matched_indices);
-                floating.Y     = floating.Y(neurotar_matched_indices);
-                floating.phi   = floating.phi(neurotar_matched_indices);
-                floating.alpha = floating.alpha(neurotar_matched_indices);
-                floating.omega = floating.omega(neurotar_matched_indices);
-                floating.speed = floating.speed(neurotar_matched_indices);
-                floating.zones = floating.zones(neurotar_matched_indices);
-                floating.r     = floating.r(neurotar_matched_indices);
+                obj.extractFloatingFields(neurotar_matched_indices);
             end
-            
+ 
         end
         
-        function preprocessChecker(obj, data,floating)
-            if length(data.DFF) == length(floating.X)
+        function extractFloatingFields(obj, idx)
+            floatingFields = string(fields(obj.floating))';  % Convert into a "string array"
+            for f = floatingFields
+                if strcmp(f, 'time')
+                    continue
+                else
+                    initField = obj.floating.(f);  % This is because if we change floating iteratively, it'll affect the 
+                    % next window as well
+                    newField = zeros(length(idx), 1);
+                    for ii = 1:length(idx)
+                       newField(ii) = ...
+                            mean(initField(...
+                            max([1, idx(ii) - floor(obj.averageWindow / 2)]) : ...
+                            min([idx(ii) + floor(obj.averageWindow / 2), length(obj.floating.(f))])));
+                    end
+                    obj.floating.(f) = newField;
+                end
+            end
+        end
+        
+        function preprocessChecker(obj)
+            if length(obj.data.DFF) == length(obj.floating.X)
                 fprintf('Your data are preprocessed, ready to go...\n')
             else
                 fprintf('Something bad happened and your data are not yet compatible.\n')
