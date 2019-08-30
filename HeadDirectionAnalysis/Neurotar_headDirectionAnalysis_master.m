@@ -56,12 +56,12 @@ plt.setData(binnedData);
 
 cells2plot = find(top_cells);
 for ii = 1:length(cells2plot)
-    subplot(1,2,1)
+    subplot(1, 2, 1)
     c = cells2plot(ii);
-    plt.polarPlot(c,'LineWidth',5);
+    plt.polarPlot(c,'LineWidth', 5);
     title(sprintf('Cell #%d', cells2plot(ii)))
-    subplot(1,2,2)
-    imagesc(activity_heatmap(:,:,c))
+    subplot(1, 2, 2)
+    imagesc(activity_heatmap(:, :, c))
     axis square
     colorbar
     pause
@@ -69,11 +69,11 @@ end
 
 
 for ii = [18, 176, 404]
-    subplot(1,2,1)
-    plt.polarPlot(ii,'LineWidth',5);
+    subplot(1, 2, 1)
+    plt.polarPlot(ii,'LineWidth', 5);
     title(sprintf('Cell #%d', (ii)))
-    subplot(1,2,2)
-    imagesc(activity_heatmap(:,:,ii))
+    subplot(1, 2, 2)
+    imagesc(activity_heatmap(:, :, ii))
     axis square
     colorbar
     pause
