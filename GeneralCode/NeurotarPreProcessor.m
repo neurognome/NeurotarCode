@@ -59,6 +59,8 @@ classdef NeurotarPreProcessor < handle
             
             data = obj.getData();
             floating = obj.getFloating();
+            
+            obj.saveData();
         end
         
         function reset(obj)
@@ -67,12 +69,22 @@ classdef NeurotarPreProcessor < handle
             fprintf('Data reset to initial values/n')
         end
         
+        function saveData(obj)
+            new_filename = obj.data.filename(1:end-4);
+            data = obj.data;
+            save(strcat(new_filename, '_data.mat'), 'data')
+           
+            floating_filename = strcat('floating_matched_', new_filename);
+            floating = obj.floating;
+            save(floating_filename, 'floating');
+        end
+        
         %% Getters n Setters
         function setAverageWindow(obj, win)
-            if mod(win, 2) == 1
-                fprintf('Window must be even, adjusted: %d --> %d\n', win, win - 1);
-                win = win - 1;
-            end
+%             if mod(win, 2) == 1
+%                 fprintf('Window must be even, adjusted: %d --> %d\n', win, win - 1);
+%                 win = win - 1;
+%             end
             obj.averageWindow = win;
         end
         
@@ -91,6 +103,13 @@ classdef NeurotarPreProcessor < handle
     
     
     methods (Access = protected)
+        function out = createFloatingFilename(data_filename)
+            dash_idx = strfind(data_filename, '-');
+            dash_idx = dash_idx(1);
+            
+            out = strcat('floating_matched', data_filename);
+        end
+        
         function time = extractTime(obj, floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
             time = time(:, [4,5,7,8,10:12]); % this is assuming none of recording last more than an hour
@@ -147,11 +166,15 @@ classdef NeurotarPreProcessor < handle
                     initField = obj.floating.(f);  % This is because if we change floating iteratively, it'll affect the 
                     % next window as well
                     newField = zeros(length(idx), 1);
+%                     for ii = 1:length(idx)
+%                        newField(ii) = ...
+%                             mean(initField(...
+%                             max([1, idx(ii) - floor(obj.averageWindow / 2)]) : ...
+%                             min([idx(ii) + floor(obj.averageWindow / 2), length(obj.floating.(f))])));
+%                     end
                     for ii = 1:length(idx)
                        newField(ii) = ...
-                            mean(initField(...
-                            max([1, idx(ii) - floor(obj.averageWindow / 2)]) : ...
-                            min([idx(ii) + floor(obj.averageWindow / 2), length(obj.floating.(f))])));
+                            mean(initField(idx(ii) : min([idx(ii) + obj.averageWindow, length(obj.floating.(f))])));
                     end
                     obj.floating.(f) = newField;
                 end

@@ -105,8 +105,8 @@ classdef HPC_PlaceCellAnalyzer < handle
             counts = ct; %doesn't change
             DFF_binned = DFF_binned ./ counts;
             
-            obj.analysisData.addData('DFF_binned');
-            obj.workingData.addData('counts','bin_id_X','bin_id_Y','cell_responses');
+            obj.analysisData.add('DFF_binned');
+            obj.workingData.add('counts','bin_id_X','bin_id_Y','cell_responses');
         end % this code is lifted from Will's code, just some minor changes to make it compatible
         
         function computeSpatialInformation(obj)
@@ -118,8 +118,8 @@ classdef HPC_PlaceCellAnalyzer < handle
                 I(:,:,ii) = heatmaps;
             end
             
-            obj.analysisData.addData('spatial_info');
-            obj.plottingData.addData('I');
+            obj.analysisData.add('spatial_info');
+            obj.plottingData.add('I');
         end % lifted from Will's code, Step1/2
         
         function screenPlaceCells(obj) % lifted from Will's code Step2/2
