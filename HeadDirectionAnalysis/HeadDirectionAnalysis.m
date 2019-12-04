@@ -55,56 +55,29 @@ classdef HeadDirectionAnalysis < handle
             fprintf('%0.2f%% cells tuned\n', mean(obj.is_head_direction) * 100);
         end
         
-        function calculatePreferredDirection(obj, method)
+        function out = calculatePreferredDirection(obj, method, binned_data)
             % Get the preferred direction of each cell, either vectorsum or just the max
-            if nargin < 2
+            if nargin < 2 || isempty(method)
                 method = 'vectorsum';
                 fprintf('No method provided, defaulting to vectorsum\n')
             end
             
-            binned_data = obj.binData();
-            obj.direction_info = zeros(size(binned_data, 1), 2);
+            if nargin < 3 || isempty(binned_data)
+                binned_data = obj.binData();
+            end
+            
+            out = zeros(size(binned_data, 1), 2);
             switch method
                 case 'vectorsum'
-                    % Quick anonymous functions
-                    getHorz = @(v, theta) v .* cos(theta);
-                    getVert = @(v, theta) v .* sin(theta);
-                    getAng = @(vert, horz) atan(vert ./ horz);
-                    getMag = @(vert, horz) sqrt(horz ^ 2 + vert ^ 2);
-                    
                     for c = 1:size(binned_data, 1)
                         dat = binned_data(c, :);
                         dat(dat < 0) = 0; % rectify
-                        
-                        dat = mean([dat(1:size(binned_data, 2)/2); dat(size(binned_data, 2)/2 + 1:end)]);
-                       % dat = wrapTo2Pi(dat * 2); % from Jacob et al 2017, turning bimodal to unimodal dist
-                        theta = linspace(0, 2*pi, length(dat));
-                        
-                        % testing data : dat = circshift([9 8 7 6 5 6 7 8],ii);
-                        h = getHorz(dat, theta);
-                        v = getVert(dat, theta);
-                        
-                        r_h = sum(h);
-                        r_v = sum(v);
-                        
-                        m = getMag(r_v, r_h);
-                        a = getAng(r_v, r_h);
-                        
-                        %% Correcting for quadrant errors
-                        if r_h > 0
-                            ang = a;
-                        elseif r_h < 0
-                            ang = a + pi;
-                        else
-                            disp('Uh... that''s not supposed to happen')
-                            ang = 0;
-                        end
-                        obj.direction_info(c, :) = [ang, m];
+                        out(c, :) = obj.calculateVectorSum(dat, false);
                     end
-                    obj.direction_info(:, 1) = wrapTo2Pi(obj.direction_info(:, 1));
+                    out(:, 1) = wrapTo2Pi(out(:, 1));
                 case 'max'
                     for c = 1:size(binned_data, 1)
-                        [obj.direction_info(c, 2) ,obj.direction_info(c, 1)] = max(binned_data(c, :));
+                        [out(c, 2) ,out(c, 1)] = max(binned_data(c, :));
                     end
                 otherwise
                     fprintf('Invalid method provided (methods: vectorsum or max)\n')
@@ -112,28 +85,23 @@ classdef HeadDirectionAnalysis < handle
             end
         end
         
-        function  q_binned_data = calculateHeadDirectionIdx(obj, n_sections)
+        
+        function calculateHeadDirectionIdx_direction(obj)
             % The preferred direction here is calculated by splitting the recording into sections (generally quadrants), then
             % seeing how "stable" the responses are across the sections. A correlation greater than 0.2 is considered to be
             % "tuned"
             % the following analyses are based on Giacomo et al 2017, in
             % current biology...
-            if nargin < 2
-                n_sections = 4;
-            end
             
             neural_data = obj.initializeData(obj.data,'spikes');
-            heading = obj.initializeData(obj.floating,'heading');
             
-            [quadrant_correlations, q_binned_data] = obj.calculateQuadrantCorrelations(neural_data, heading, n_sections);
-            
-            obj.mean_quadrant_correlation = mean(quadrant_correlations,2);
+            obj.direction_info = obj.calculatePreferredDirection('vectorsum');
             
             if isempty(obj.shuffled_threshold)
-                obj.getShuffledThreshold(neural_data, heading, n_sections);
+                obj.getShuffledThreshold(neural_data);
             end
             
-            obj.is_head_direction = obj.mean_quadrant_correlation' > obj.shuffled_threshold;
+            obj.is_head_direction = obj.direction_info(:, 2)' > obj.shuffled_threshold;
         end
         
         
@@ -142,13 +110,13 @@ classdef HeadDirectionAnalysis < handle
             % lenient
             
             if nargin < 2
-                speed_threshold = 10; % Default
+                speed_threshold = 5; % Default
             end
             if nargin < 3
                 peak_width = 5;
             end
             if nargin < 4
-                search_window = 10;
+                search_window = 20;
             end
             
             obj.findMovingTimes(speed_threshold, peak_width, search_window);
@@ -157,7 +125,153 @@ classdef HeadDirectionAnalysis < handle
     end
     
     methods % Beta analyses
+        function [predicted_heading, prediction_error] = decodePopulationActivity(obj, display_flag, normalize_flag)
+            % At each time point (t), each given neuron contributes a set of vectors, defined by its tuning curve. This set
+            % of vectors is then scaled by the activity of that neuron at a given time point, and averaged across all neurons
+            % to get a single population activity vector
+            if nargin < 2 || isempty(display_flag)
+                display_flag = true;
+            end
+            
+            if nargin < 3 || isempty(normalize_flag)
+                normalize_flag = true;
+            end
+            
+            % Get data
+            timeseries = obj.data.spikes;
+            
+            %  Get tuning
+            binned_data = obj.getBinnedData();
+            
+            % Rescale all rows
+            tuning_wts = rescale(binned_data,...
+                'InputMin', min(binned_data, [], 2),...
+                'InputMax', max(binned_data, [], 2));
 
+            if normalize_flag
+                % cap it
+                cap = prctile(timeseries', 99);
+                for ii = 1:size(timeseries, 1)
+                    temp = timeseries(ii, :);
+                    temp(temp > cap(ii)) = cap(ii);
+                    timeseries(ii, :) = temp;
+                end
+                
+                timeseries = rescale(timeseries,...
+                    'InputMin', min(timeseries, [], 2),...
+                    'InputMax', max(timeseries, [], 2));
+            end
+            
+            %             for t = 1:size(timeseries, 2)
+            %                 temp = (max(timeseries(:, t), 0) .* smoothed_wts) ./ sum(smoothed_wts); % nonzero weights are lost
+            %                 direction_distributions(t, :) = sum(temp);
+            %             end
+            
+            group_method = 'movmean';
+            switch group_method
+                case 'bin'
+                    bin_size = 10;
+                    ct=1;
+                    for t = 1:bin_size:size(timeseries, 2)
+                        temp = (max(mean(timeseries(:, t:t + 9), 2), 0) .* tuning_wts) ./ sum(tuning_wts); % nonzero weights are lost
+                        heading_distribution(ct, :) = sum(temp);
+                        ct=ct+1;
+                    end
+                    
+                case 'movmean'
+                    bin_size = 1;      
+                    pre_post_samples = 4;
+                    heading_distribution = zeros(size(timeseries, 2), size(tuning_wts, 2));
+                    for t = 1:size(timeseries, 2)
+                        %temp = (max(mean(timeseries(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples, length(timeseries))), 2), 0) .* tuning_wts) ./ sum(tuning_wts); % nonzero weights are lost
+                        heading_distribution(t, :) = sum((max(mean(...
+                            timeseries(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples,...
+                            length(timeseries))), 2), 0) .* tuning_wts) ./ sum(tuning_wts)); % nonzero weights are lost);
+                    end
+            end
+            
+            confidence = sum(heading_distribution, 2);
+            
+            bound = @(x, bl, bu) min(max(x, bl), bu);
+            modelfun = @(b, x) b(1) + ...
+               max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
+               max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
+         
+            coeffs = obj.fitDoubleGaussian(heading_distribution, modelfun);
+% 
+%             
+%             window = 10
+%             predicted_heading = zeros(size(coeffs, 1), 1);
+%                         
+%             for t = 1:size(coeffs, 1)
+%                 if t < window + 1
+%                     predicted_heading(t) = coeffs(t, 3);
+%                 elseif predicted_heading(t - 1) == 0
+%                     predicted_heading(t) = coeffs(t, 3);
+%                 else
+%                     candidates = [coeffs(t, 3), coeffs(t, 6)];
+%                     candidates(candidates > 120) = NaN;
+%                     candidates(candidates < 0) = NaN;
+%                    x = [1:window];
+%                    v = predicted_heading(t - window:t - 1); % Previous 3
+%                    xq = [1:window + 1];
+%                    vq1 = interp1(x, v, xq, 'linear', 'extrap');
+%                    next_predicted_value = vq1(end);
+%                   % [~, idx] = min([diff([predicted_heading(t-1), candidates(1)]),...
+%                    %diff([predicted_heading(t-1), candidates(2)])]);
+%                    %[~, idx] = min(abs(next_predicted_value - candidates));
+%                     [~, idx] = min(obj.calculateMinimumDistance(next_predicted_value, candidates)); % Find the smaller of two differences
+%                     predicted_heading(t) = candidates(idx);
+%                 end
+%             end
+            
+         
+            predicted_heading = coeffs(:, 3); % Location of first (bigger) peak
+            %predicted_heading = rescale(predicted_heading, -180, 180);
+            heading = rescale(decimate(obj.floating.alpha, bin_size), 0, 120);
+            
+            % Minimum difference             % ain't workin right
+
+%            prediction_error = obj.calculateMinimumDistance(heading, predicted_heading, 60);
+            % rescale to degree
+ %           prediction_error(prediction_error > 60) = 60;
+            prediction_error = abs(heading - predicted_heading);
+            prediction_error(prediction_error > 60) = 60;
+            prediction_error = prediction_error * 360/120;
+            
+            if display_flag
+                figure
+                subplot(3, 2, [1, 2])
+                plot(heading, 'k:')
+                hold on
+                plot(predicted_heading)
+                hold on
+                ylabel('heading')
+                
+                
+                subplot(3, 2, [3, 4])
+                plot(prediction_error)
+                title('Predictior Error')
+                ylabel('Error')
+                
+                subplot(3, 2, 5)
+                histogram(prediction_error)
+                
+%                 subplot(2, 1, 2)
+%                 plot(confidence)
+%                 ylabel ('confidence')
+%                 xlabel('time (s)')
+            end
+        end
+
+        function out = calculateMinimumDistance(obj, ang1, ang2, pivot_point)
+            if nargin < 4 || isempty(pivot_point)
+                pivot_point = 360; % assume degrees
+            end
+            normDeg = mod(ang1 - ang2, pivot_point);
+            out = min(pivot_point - normDeg, normDeg);
+            
+        end
         
         function flip_score = calculateFlipScore(obj)
             % Get the binned data and calculate autocorrelation
@@ -195,8 +309,368 @@ classdef HeadDirectionAnalysis < handle
             flip_score(abs(flip_score) > 5) = 0;  % Almost always due to errors
             %}
         end
+
+    end
+    
+    methods % Visualization methods
+        function bilobalityPlot(obj)
+            binned_data = obj.getBinnedData();
+            bilob_idx = obj.bilobality_fit_info.coeffs(obj.is_bilobed & obj.is_head_direction, 3);
+            bilob_data = binned_data(obj.is_bilobed & obj.is_head_direction, :);
+            [r_max, max_idx] = max(bilob_data, [], 2);
+            r_min = min(bilob_data, [], 2);
+            
+            plot_data = rescale(bilob_data, 'InputMin', r_min, 'InputMax', r_max);
+            
+            for d = 1:size(plot_data, 1)
+                plot_data(d, :) = circshift(plot_data(d, :), 1 - max_idx(d));
+            end
+            
+            figure
+            subplot(2, 1, 1)
+            imagesc(plot_data);
+            ylabel('Cell #')
+            xlabel('Direction')
+            
+            subplot(2, 1, 2)
+            %theta = (bilob_idx / length(bilob_idx)) .* 2 * pi;
+            histogram(bilob_idx, [0.5:12.5]);  % Force the bin edges so that it lines up properly
+            axis([0 13 ylim])
+            ylabel('Counts')
+            xlabel('Bilobality Direction')
+            tabulate(round(bilob_idx))
+        end
         
+        function alignedPlot(obj)
+            obj.getPreferredDirection('max');
+            % Aligns to preferred direction, and then plots them, to check for second peaks mainly
+            pref_dir = obj.direction_info(:, 1); % prefdir
+            binned_data = binned_data(obj.mean_quadrant_correlation > 0.2, :);
+            pref_dir = pref_dir(obj.mean_quadrant_correlation > 0.2);
+            aligned_data = zeros(size(binned_data));
+            for c = 1:size(binned_data, 1)
+                aligned_data(c, :) = rescale(circshift(binned_data(c, :), 1 - pref_dir(c)));
+                
+                temp = findpeaks(aligned_data(c, :), 'SortStr', 'descend');
+                bimodality_idx(c) = aligned_data(c, 1) / temp(1);
+            end
+            [~, sortingIdx] = sort(bimodality_idx);
+            
+            aligned_data = aligned_data(sortingIdx, :);
+            
+            % sort
+            figure;
+            subplot(1, 2, 1)
+            imagesc(aligned_data)
+            subplot(1, 2, 2)
+            plot(mean(aligned_data));
+        end
         
+        function polarPlot(obj, c)
+            % Simple polar-plotter for single cells
+            plt = RawDataPlots();
+            plt.setData(obj.binData());
+            plt.polarPlot(c, 'LineWidth', 5)
+            title(sprintf('Cell %d', c))
+        end
+    end
+    
+    methods % Setters and getters
+        function out = getSegmentedData(obj, n_sections)
+            neural_data = obj.initializeData(obj.data,'spikes');
+            heading = obj.initializeData(obj.floating,'heading');
+            segmented_data = obj.segmentData(neural_data, n_sections);
+            segmented_heading = obj.segmentData(heading, n_sections);
+            
+            out = obj.binSegmentedData(segmented_data, segmented_heading, n_sections);    
+        end
+        
+        function out = getBinnedData(obj)
+            out = obj.binData();  % Call w/o input arguments so it correctly gets the thing
+        end
+        
+        function obj = setHeadingFlag(obj, val)
+            obj.fix_heading_flag = val;
+            obj.getHeading();
+        end
+        
+        function obj = setBinWidth(obj, bin_width)
+            obj.bin_width = bin_width
+        end
+        
+        function out = getSignificantCells(obj, threshold)
+            if nargin < 2
+                threshold = 0.2;  % From the paper
+            end
+            out = find(obj.mean_quadrant_correlation > threshold)';
+        end
+        
+        function out = getPreferredDirection(obj)
+            out = obj.direction_info(:, 1);
+        end
+    end
+    
+    methods (Access = protected) % Helper methods
+        function q_binned_data = binSegmentedData(obj, segmented_data, segmented_heading, n_sections)
+            q_binned_data = zeros(size(segmented_data{1}, 1), length(-180:obj.bin_width:180) - 1, n_sections);
+            for q = 1:n_sections
+                q_binned_data(:, :, q) = obj.binData(obj.bin_width, segmented_data{q}, segmented_heading{q});
+            end
+        end
+        
+        function getShuffledThreshold(obj, data, threshold)
+            if nargin < 3 || isempty(threshold)
+                threshold = 99;
+            end
+            
+            disp('Shuffling data...')
+            
+            for iter = 1:100 % 100 iterations
+                shuffled_neural_data = obj.shuffleData(data);
+                shuffled_binned_data = obj.binData([], shuffled_neural_data);
+               % shuffled_quadrant_correlations(:, :, iter) = ...
+                %    obj.calculateQuadrantCorrelations(shuffled_neural_data, heading, n_sections);
+                shuffled_direction_info(:, :, iter) = obj.calculatePreferredDirection('vectorsum', shuffled_binned_data);       
+            end
+            obj.shuffled_threshold = prctile(squeeze(shuffled_direction_info(:, 2, :))', threshold);
+        end
+        
+        function quadrant_correlations = calculateQuadrantCorrelations(obj, neural_data, heading, n_sections)
+            q_data = obj.segmentData(neural_data, n_sections);
+            q_heading = obj.segmentData(heading, n_sections);     
+            q_binned_data = obj.binSegmentedData(q_data, q_heading, n_sections);
+            % compare quadrants in pairwise (1-1,1-2,1-3,1-4,2-3,2-4,3-4)
+            possible_combinations = nchoosek(1:n_sections, 2);
+            quadrant_correlations = zeros(size(neural_data, 1), size(possible_combinations, 1));
+            for ii = 1:size(possible_combinations, 1)
+                for c = 1:size(neural_data, 1)
+                    quadrant_correlations(c, ii) = corr(...
+                        q_binned_data(c, :, possible_combinations(ii, 1))',...
+                        q_binned_data(c, :, possible_combinations(ii, 2))');
+                end
+            end
+        end
+        
+        function [x, y] = getCoords(obj)
+            % Convetrs the raw X and Y from floating into usable coordinates for plotting
+            x = round(obj.floating.X + obj.RADIUS)';  % Round to turn into coordinates
+            y = round(obj.floating.Y + obj.RADIUS)';
+            
+            % Bound at radius
+            x = max(x, 1);
+            x = min(x, 2 * obj.RADIUS);
+            
+            y = max(y, 1);
+            y = min(y, 2 * obj.RADIUS);
+        end
+        
+        function getHeading(obj)
+            % Converts alpha to heading via some transformations we figured out
+            if obj.fix_heading_flag
+                obj.floating.heading = calculateHeading(...
+                    obj.floating.r, obj.floating.phi, obj.floating.alpha, obj.RADIUS);
+            else
+                obj.floating.heading = obj.floating.alpha;
+            end
+            
+            function h = calculateHeading(r, phi, alpha, radius)
+                h = 2 .* asind((r .* sind(alpha - phi)) ./ (2 .* radius)) + alpha;
+                h = wrapTo180(h); % to account for passing 180 on the thing
+            end
+        end
+        
+        function varargout = initializeData(obj, data_struct, varargin)
+            % Initializes the data in preparation for multiple analyses. Mainly checks if you want to remove moving samples
+            % or not and goes from there
+            for ii = 1:length(varargin)
+                d = data_struct.(varargin{ii});
+                
+                if size(d,1) > size(d, 2)
+                    d = d';
+                end
+                
+                if obj.remove_slow_flag
+                    varargout{ii} = d(:, obj.is_moving);
+                else
+                    varargout{ii} = d;
+                end
+            end
+        end
+        
+        function findMovingTimes(obj, speed_threshold, peak_width, search_window)
+            % Finds times that are considered moving based on a simple thershold, and reports them
+            if ~isempty(obj.is_moving)
+                disp('Already removed moving times, don''t run it again')
+                return
+            end
+            
+            speed = obj.initializeData(obj.floating, 'speed');
+            obj.is_moving = speed > speed_threshold;
+            moving_idx = find(obj.is_moving);
+            init_moving = obj.is_moving; % store init
+            for idx = moving_idx
+                pre_window = init_moving(max(1, (idx - search_window)):idx-1);
+                post_window = init_moving((idx+1):min(length(init_moving), idx + search_window));
+                obj.is_moving(idx) = ~((sum(pre_window) < peak_width && sum(post_window) < peak_width));
+            end
+        end
+        
+        function out = binData(obj, bin_width, data, heading)
+            % Bins data based on a determined bindwidth
+            if nargin < 2 || isempty(bin_width)
+                bin_width = obj.bin_width;
+            end
+            
+            if nargin < 3 ||  isempty(data)
+                data = obj.initializeData(obj.data, 'spikes');
+            end
+            if nargin < 4 || isempty(heading)
+                heading = obj.initializeData(obj.floating, 'heading');
+            end
+            
+            % Changed this to be bin_width of 3, and a smoothing filter, a la Giocomo et al 2014, Curr Bio
+            bin_edges = -180:bin_width:180; % Because alpha is [-180,180];
+            % This is the doubling procedure that's documented in the Jeffrey paper
+            %heading = wrapTo180(heading * 2);    
+            groups = discretize(heading, bin_edges);
+            u_groups = 1:length(bin_edges) - 1; % Changed because sometimes not all groups represented?
+            out = zeros(size(data, 1), length(u_groups));
+            
+            for bin = 1:length(u_groups)
+                for c = 1:size(data, 1)
+                    out(c, bin) = mean(data(c, groups == u_groups(bin)));
+                end
+            end
+            
+            out(isnan(out)) = 0; % NanCheck
+            
+            out = movmean(out, 10, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
+        end
+    end
+    
+    methods (Static = true) % Static methods
+                
+        function segmented_data = segmentData(data, n_sections)
+            total_dur = size(data, 2);
+            section_length = round(total_dur./n_sections);
+            
+            segmented_data = cell(n_sections, 1);
+            for q = 1:n_sections % Separate timeseries into sections
+                segmented_data{q}    = data(:, ...
+                    (q - 1) * section_length + 1 : min(q*section_length, size(data, 2)));
+            end
+        end
+        
+        function out = calculateVectorSum(data, fold_flag)
+            if nargin < 2 || isempty(fold_flag)
+                fold_flag = false;
+            end
+            
+            getHorz = @(v, theta) v .* cos(theta);
+            getVert = @(v, theta) v .* sin(theta);
+            getAng = @(vert, horz) atan(vert ./ horz);
+            getMag = @(vert, horz) sqrt(horz ^ 2 + vert ^ 2);
+            
+            if fold_flag
+                data = mean([data(1:size(data, 2)/2); data(size(data, 2)/2 + 1:end)]);
+                theta = linspace(0, pi, length(data));
+            else
+                theta = linspace(0, 2*pi, length(data));
+            end
+            % dat = wrapTo2Pi(dat * 2); % from Jacob et al 2017, turning bimodal to unimodal dist
+            
+            % testing data : dat = circshift([9 8 7 6 5 6 7 8],ii);
+            h = getHorz(data, theta);
+            v = getVert(data, theta);
+            
+            % Changed from sum to mean, shouldn't change anything...
+            r_h = sum(h);
+            r_v = sum(v);
+            
+            m = getMag(r_v, r_h);
+            a = getAng(r_v, r_h);
+            
+            %% Correcting for quadrant errors
+            if r_h > 0
+                ang = a;
+            elseif r_h < 0
+                ang = a + pi;
+            else
+                disp('Uh... that''s not supposed to happen')
+                ang = 0;
+            end
+            
+            out = [ang, m];
+        end
+
+        
+        function shuffled_data = shuffleData(data)
+            % This function shuffles the given data. Please provide data in cells x data pts
+            shuffled_data = zeros(size(data));
+            for row = 1:size(data, 1)
+                shift_amt = randi([20, size(data, 2) - 20]);
+                shuffled_data(row, :) = circshift(data(row, :), shift_amt);
+            end
+        end
+        
+        function [coefficients, fit_quality] = fitDoubleGaussian(data, model)
+            % The plan is to use a mixture of gaussian models to get a better idea of the bilobality stuff
+                        
+            % Prepare options for linear fitting
+            opts = statset('nlinfit');
+            opts.FunValCheck = 'on';
+            %opts.Display = 'final';
+            coefficients = zeros(size(data, 1), 6);
+            fit_quality = zeros(size(data, 1), 1);
+            for c = 1:size(data, 1)
+                curr_data = data(c, :);
+                
+                beta0 = prepareBeta0(curr_data);
+                tbl = table([1:size(data, 2)]', data(c, :)');
+                try
+                    mdl = fitnlm(tbl, model, beta0, 'Options', opts);
+                    coefficients(c, :) = mdl.Coefficients{:, 'Estimate'};
+                    fit_quality(c) = mdl.Rsquared.Adjusted;
+                catch
+                    coefficients(c, :) = NaN;
+                    fit_quality(c) = 0;
+                end
+                
+            end
+            
+            function beta0 = prepareBeta0(data)
+                [sorted_values, sorted_idx] = sort(data, 'descend');
+                mag1 = max([sorted_values(1), 1]);
+                loc1 = sorted_idx(1);
+                std1 = 2;
+                
+                % find the second peak
+                wrapN = @(x, N) (1 + mod(x-1, N));
+                mag2 = mag1 / 2; % Random guess
+                loc2 = wrapN(loc1 + length(data) / 2, length(data));
+                
+                beta0 = [0, mag1, loc1, std1, mag2, loc2];
+            end
+            
+        end
+        
+        function distance = getCircularDistance(loc1, loc2)
+            % ensure p2 >= p1 always
+            if (loc2 < loc1)
+                t = loc1(1); loc1 = loc2;  loc2 = t;
+            end
+            % forward dist
+            dist = loc2 - loc1 + 1;
+            % rev dist
+            dist2 = loc1 - 1 + 12 - loc2;
+            distance = min(dist, dist2);
+        end
+    end
+end
+
+
+%{
+Deprecated code:
         function quadrantAnalysisHeadDirection(obj, plot_flag)
             % The purpose of this method is to use the preferred direction of the cell to figure out what other preferred
             % directions it may have. Essentially, for a bilobed tuning cell, we only expected bilobality in certain
@@ -260,7 +734,67 @@ classdef HeadDirectionAnalysis < handle
                 prettyPlot()
             end
         end
+
         
+        function trajectoryActivityPlot(obj, c)
+            % Used to check the activity of the given cell at each position. Placecell-type stuff
+            [x, y] = obj.getCoords();
+            z = zeros(size(x));
+            col = obj.data.spikes(c, :);
+            col(col < 1) = min(col(:));
+            surface([x;x],[y;y],[z;z],[col;col],...
+                'AlphaData', [col;col],...
+                'EdgeAlpha', 'interp',...
+                'facecol','no',...
+                'edgecol','interp',...
+                'linew',2);
+            colormap jet
+            axis square
+            title(sprintf('Cell %d', c))
+        end
+        
+        function pointActivityPlot(obj, c)
+            % Essentially a thresholded version of trajectoryActivityPlot.
+            [x, y] = obj.getCoords();
+            high_activity_frames = find(obj.data.spikes(c, :) > prctile(obj.data.spikes(c, :), 99));
+            
+            arena = zeros(2 * obj.RADIUS, 2 * obj.RADIUS);
+            for f = high_activity_frames
+                arena(x(f), y(f)) = 1;
+            end
+            
+            imagesc(imgaussfilt(arena, 0.5))
+            set(gca, 'YDir', 'normal')
+            axis square
+            colormap hot
+        end
+
+        
+        function calculateHeadDirectionIdx(obj, n_sections)
+            % The preferred direction here is calculated by splitting the recording into sections (generally quadrants), then
+            % seeing how "stable" the responses are across the sections. A correlation greater than 0.2 is considered to be
+            % "tuned"
+            % the following analyses are based on Giacomo et al 2017, in
+            % current biology...
+            if nargin < 2
+                n_sections = 4;
+            end
+            
+            neural_data = obj.initializeData(obj.data,'spikes');
+            heading = obj.initializeData(obj.floating,'heading');
+            
+            quadrant_correlations = obj.calculateQuadrantCorrelations(neural_data, heading, n_sections);
+            
+            obj.mean_quadrant_correlation = mean(quadrant_correlations,2);
+            
+            if isempty(obj.shuffled_threshold)
+                obj.getShuffledThreshold(neural_data, heading, n_sections);
+            end
+            
+            obj.is_head_direction = obj.mean_quadrant_correlation' > obj.shuffled_threshold;
+        end
+
+  
         function [coeffs, r_sqr] = temporaryMegaFit(obj, data)
             bound = @(x, bl, bu) min(max(x, bl), bu);
             %
@@ -345,329 +879,4 @@ classdef HeadDirectionAnalysis < handle
                 end
             end
         end
-    end
-    
-    methods % Visualization methods
-        function bilobalityPlot(obj)
-            binned_data = obj.getBinnedData();
-            bilob_idx = obj.bilobality_fit_info.coeffs(obj.is_bilobed & obj.is_head_direction, 3);
-            bilob_data = binned_data(obj.is_bilobed & obj.is_head_direction, :);
-            [r_max, max_idx] = max(bilob_data, [], 2);
-            r_min = min(bilob_data, [], 2);
-            
-            plot_data = rescale(bilob_data, 'InputMin', r_min, 'InputMax', r_max);
-            
-            for d = 1:size(plot_data, 1)
-                plot_data(d, :) = circshift(plot_data(d, :), 1 - max_idx(d));
-            end
-            
-            figure
-            subplot(2, 1, 1)
-            imagesc(plot_data);
-            ylabel('Cell #')
-            xlabel('Direction')
-            
-            subplot(2, 1, 2)
-            %theta = (bilob_idx / length(bilob_idx)) .* 2 * pi;
-            histogram(bilob_idx, [0.5:12.5]);  % Force the bin edges so that it lines up properly
-            axis([0 13 ylim])
-            ylabel('Counts')
-            xlabel('Bilobality Direction')
-            tabulate(round(bilob_idx))
-        end
-        
-        function alignedPlot(obj)
-            obj.getPreferredDirection('max');
-            % Aligns to preferred direction, and then plots them, to check for second peaks mainly
-            pref_dir = obj.direction_info(:, 1); % prefdir
-            binned_data = binned_data(obj.mean_quadrant_correlation > 0.2, :);
-            pref_dir = pref_dir(obj.mean_quadrant_correlation > 0.2);
-            aligned_data = zeros(size(binned_data));
-            for c = 1:size(binned_data, 1)
-                aligned_data(c, :) = rescale(circshift(binned_data(c, :), 1 - pref_dir(c)));
-                
-                temp = findpeaks(aligned_data(c, :), 'SortStr', 'descend');
-                bimodality_idx(c) = aligned_data(c, 1) / temp(1);
-            end
-            [~, sortingIdx] = sort(bimodality_idx);
-            
-            aligned_data = aligned_data(sortingIdx, :);
-            
-            % sort
-            figure;
-            subplot(1, 2, 1)
-            imagesc(aligned_data)
-            subplot(1, 2, 2)
-            plot(mean(aligned_data));
-        end
-        
-        function polarPlot(obj, c)
-            % Simple polar-plotter for single cells
-            plt = RawDataPlots();
-            plt.setData(obj.binData());
-            plt.polarPlot(c, 'LineWidth', 5)
-            title(sprintf('Cell %d', c))
-        end
-        
-        function trajectoryActivityPlot(obj, c)
-            % Used to check the activity of the given cell at each position. Placecell-type stuff
-            [x, y] = obj.getCoords();
-            z = zeros(size(x));
-            col = obj.data.spikes(c, :);
-            col(col < 1) = min(col(:));
-            surface([x;x],[y;y],[z;z],[col;col],...
-                'AlphaData', [col;col],...
-                'EdgeAlpha', 'interp',...
-                'facecol','no',...
-                'edgecol','interp',...
-                'linew',2);
-            colormap jet
-            axis square
-            title(sprintf('Cell %d', c))
-        end
-        
-        function pointActivityPlot(obj, c)
-            % Essentially a thresholded version of trajectoryActivityPlot.
-            [x, y] = obj.getCoords();
-            high_activity_frames = find(obj.data.spikes(c, :) > prctile(obj.data.spikes(c, :), 99));
-            
-            arena = zeros(2 * obj.RADIUS, 2 * obj.RADIUS);
-            for f = high_activity_frames
-                arena(x(f), y(f)) = 1;
-            end
-            
-            imagesc(imgaussfilt(arena, 0.5))
-            set(gca, 'YDir', 'normal')
-            axis square
-            colormap hot
-        end
-        
-    end
-    
-    methods % Setters and getters
-        function out = getBinnedData(obj)
-            out = obj.binData();  % Call w/o input arguments so it correctly gets the thing
-        end
-        
-        function obj = setHeadingFlag(obj, val)
-            obj.fix_heading_flag = val;
-            obj.getHeading();
-        end
-        
-        function obj = setBinWidth(obj, bin_width)
-            obj.bin_width = bin_width
-        end
-        
-        function out = getSignificantCells(obj, threshold)
-            if nargin < 2
-                threshold = 0.2;  % From the paper
-            end
-            out = find(obj.mean_quadrant_correlation > threshold)';
-        end
-        
-        function out = getPreferredDirection(obj)
-            out = obj.direction_info(:, 1);
-        end
-    end
-    
-    methods (Access = protected) % Helper methods
-        function getShuffledThreshold(obj, data, heading, n_sections, threshold)
-            if nargin < 5 || isempty(threshold)
-                threshold = 99;
-            end
-            
-            disp('Shuffling data...')
-            
-            for iter = 1:100 % 100 iterations
-                shuffled_neural_data = obj.shuffleData(data);
-                shuffled_quadrant_correlations(:, :, iter) = ...
-                    obj.calculateQuadrantCorrelations(shuffled_neural_data, heading, n_sections);
-            end
-            mean_shuffled_quadrant_correlations = squeeze(mean(shuffled_quadrant_correlations, 2));
-            obj.shuffled_threshold = prctile(mean_shuffled_quadrant_correlations', threshold);
-        end
-        
-        function [quadrant_correlations, q_binned_data] = calculateQuadrantCorrelations(obj, neural_data, heading, n_sections)
-            total_dur = length(heading);
-            section_length = round(total_dur./n_sections);
-            
-            q_data = cell(n_sections, 1);
-            q_heading = cell(n_sections, 1);
-            for q = 1:n_sections % Separate timeseries into sections
-                q_data{q}    = neural_data(:, ...
-                    (q - 1) * section_length + 1 : min(q*section_length, length(neural_data)));
-                q_heading{q} = heading(...
-                    (q - 1) * section_length + 1 : min(q*section_length, length(heading)));
-            end
-            q_binned_data = zeros(size(neural_data, 1), length(-180:obj.bin_width:180)-1, n_sections);
-            % Calculate the binned data
-            for q = 1:n_sections
-                q_binned_data(:, :, q) = obj.binData(obj.bin_width, q_data{q}, q_heading{q});
-            end
-            % compare quadrants in pairwise (1-1,1-2,1-3,1-4,2-3,2-4,3-4)
-            possible_combinations = nchoosek(1:n_sections, 2);
-            quadrant_correlations = zeros(size(neural_data, 1), size(possible_combinations, 1));
-            for ii = 1:size(possible_combinations, 1)
-                for c = 1:size(neural_data, 1)
-                    quadrant_correlations(c, ii) = corr(...
-                        q_binned_data(c, :, possible_combinations(ii, 1))',...
-                        q_binned_data(c, :, possible_combinations(ii, 2))');
-                end
-            end
-        end
-        
-        function [x, y] = getCoords(obj)
-            % Convetrs the raw X and Y from floating into usable coordinates for plotting
-            x = round(obj.floating.X + obj.RADIUS)';  % Round to turn into coordinates
-            y = round(obj.floating.Y + obj.RADIUS)';
-            
-            % Bound at radius
-            x = max(x, 1);
-            x = min(x, 2 * obj.RADIUS);
-            
-            y = max(y, 1);
-            y = min(y, 2 * obj.RADIUS);
-        end
-        
-        function getHeading(obj)
-            % Converts alpha to heading via some transformations we figured out
-            if obj.fix_heading_flag
-                obj.floating.heading = calculateHeading(...
-                    obj.floating.r, obj.floating.phi, obj.floating.alpha, obj.RADIUS);
-            else
-                obj.floating.heading = obj.floating.alpha;
-            end
-            
-            function h = calculateHeading(r, phi, alpha, radius)
-                h = 2 .* asind((r .* sind(alpha - phi)) ./ (2 .* radius)) + alpha;
-                h = wrapTo180(h); % to account for passing 180 on the thing
-            end
-        end
-        
-        function varargout = initializeData(obj, data_struct, varargin)
-            % Initializes the data in preparation for multiple analyses. Mainly checks if you want to remove moving samples
-            % or not and goes from there
-            for ii = 1:length(varargin)
-                d = data_struct.(varargin{ii});
-                
-                if size(d,1) > size(d, 2)
-                    d = d';
-                end
-                
-                if obj.remove_slow_flag
-                    varargout{ii} = d(:, obj.is_moving);
-                else
-                    varargout{ii} = d;
-                end
-            end
-        end
-        
-        function findMovingTimes(obj, speed_threshold, peak_width, search_window)
-            % Finds times that are considered moving based on a simple thershold, and reports them
-            if ~isempty(obj.is_moving)
-                disp('Already removed moving times, don''t run it again')
-                return
-            end
-            
-            speed = obj.initializeData(obj.floating, 'speed');
-            obj.is_moving = speed > speed_threshold;
-            moving_idx = find(obj.is_moving);
-            init_moving = obj.is_moving; % store init
-            for idx = moving_idx
-                pre_window = init_moving(max(1, (idx - search_window)):idx-1);
-                post_window = init_moving((idx+1):min(length(init_moving), idx + search_window));
-                obj.is_moving(idx) = ~((sum(pre_window) < peak_width && sum(post_window) < peak_width));
-            end
-        end
-        
-        function out = binData(obj, bin_width, data, heading)
-            % Bins data based on a determined bindwidth
-            if nargin < 2
-                bin_width = obj.bin_width;
-            end
-            
-            if nargin < 4
-                data = obj.initializeData(obj.data, 'spikes');
-                heading = obj.initializeData(obj.floating, 'heading');
-            end
-            
-            % Changed this to be bin_width of 3, and a smoothing filter, a la Giocomo et al 2014, Curr Bio
-            bin_edges = -180:bin_width:180; % Because alpha is [-180,180];
-            groups = discretize(heading, bin_edges);
-            u_groups = 1:length(bin_edges) - 1; % Changed because sometimes not all groups represented?
-            out = zeros(size(data, 1), length(u_groups));
-            
-            for bin = 1:length(u_groups)
-                for c = 1:size(data, 1)
-                    out(c, bin) = mean(data(c, groups == u_groups(bin)));
-                end
-            end
-            
-            out(isnan(out)) = 0; % NanCheck
-            
-            out = movmean(out, 10, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
-        end
-    end
-    
-    methods (Static = true) % Static methods
-        function shuffled_data = shuffleData(data)
-            % This function shuffles the given data. Please provide data in cells x data pts
-            shuffled_data = zeros(size(data));
-            for row = 1:size(data, 1)
-                shift_amt = randi([20, size(data, 2) - 20]);
-                shuffled_data(row, :) = circshift(data(row, :), shift_amt);
-            end
-        end
-        
-        function [coefficients, fit_quality] = fitDoubleGaussian(data, model)
-            % The plan is to use a mixture of gaussian models to get a better idea of the bilobality stuff
-            
-            % Prepare options for linear fitting
-            opts = statset('nlinfit');
-            opts.FunValCheck = 'on';
-            % beta0 = [y_int slope mag1 loc1 std1 mag2 loc2 std2];
-            coefficients = zeros(size(data, 1), 6);
-            fit_quality = zeros(size(data, 1), 1);
-            for c = 1:size(data, 1)
-                curr_data = smooth(data(c, :));
-                beta0 = prepareBeta0(curr_data);
-                tbl = table([1:size(data, 2)]', data(c, :)');
-                try
-                    mdl = fitnlm(tbl, model, beta0, 'Options', opts);
-                    coefficients(c, :) = mdl.Coefficients{:, 'Estimate'};
-                    fit_quality(c) = mdl.Rsquared.Adjusted;
-                catch
-                    coefficients(c, :) = NaN;
-                    fit_quality(c) = 0;
-                end
-            end
-            
-            function beta0 = prepareBeta0(data)
-                [sorted_values, sorted_idx] = sort(data, 'descend');
-                mag1 = max([sorted_values(1), 1]);
-                loc1 = sorted_idx(1);
-                std1 = 2;
-                
-                % find the second peak
-                wrapN = @(x, N) (1 + mod(x-1, N));
-                mag2 = mag1 / 2; % Random guess
-                loc2 = wrapN(loc1 + length(data) / 2, length(data));
-                
-                beta0 = [0, mag1, loc1, std1, mag2, loc2];
-            end
-            
-        end
-        
-        function distance = getCircularDistance(loc1, loc2)
-            % ensure p2 >= p1 always
-            if (loc2 < loc1)
-                t = loc1(1); loc1 = loc2;  loc2 = t;
-            end
-            % forward dist
-            dist = loc2 - loc1 + 1;
-            % rev dist
-            dist2 = loc1 - 1 + 12 - loc2;
-            distance = min(dist, dist2);
-        end
-    end
-end
+%}

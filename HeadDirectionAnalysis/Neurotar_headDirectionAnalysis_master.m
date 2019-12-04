@@ -14,10 +14,10 @@ data = importdata(n_fn);
 % Separation happens here
 hda = HeadDirectionAnalysis(data, floating);
 hda.setHeadingFlag(false)  % Heading false is using alpha
-hda.removeMovingSamples();
+%hda.removeMovingSamples();
 
 %% Working on better analysis
-plot_data = hda.calculateHeadDirectionIdx();
+hda.calculateHeadDirectionIdx_direction();
 hda.calculatePreferredDirection('vectorsum');  % Max is necessary for the aligned plots
 
 %% Save the data
