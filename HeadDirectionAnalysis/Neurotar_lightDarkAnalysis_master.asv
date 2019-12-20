@@ -13,8 +13,8 @@ for i_files = 1:length(files)
 end
 
 %% Assign each into object and analyze
-hda(1) = HeadDirectionAnalyzer(light_data, light_floating);
-hda(2) = HeadDirectionAnalyzer(dark_data, dark_floating);
+hda(1) = HeadDirectionAnalysis(light_data, light_floating);
+hda(2) = HeadDirectionAnalysis(dark_data, dark_floating);
 
 for i_hda = 1:length(hda)
     hda(i_hda).setHeadingFlag(false);
@@ -29,49 +29,48 @@ for i_hda = 1:length(hda)
   % flip_score(i_hda, :) = hda(i_hda).calculateFlipScore();
 end
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Above this line is just "preprocessing" of the the light and dark data
-% below  this line is the analyses at the current point...
+save light_dark_hda_comparisons.mat hda
+
 %% You can load previous data for here
+load('light_dark_hda_comparisons.mat');
+data_l = hda(1).getBinnedData();
+data_d = hda(2).getBinnedData();
 
-lda = LightDarkAnalyzer(hda(1), hda(2));
+%% Lobality
+flip_score = hda(1).calculateFlipScore();
+flip_score2 = hda(2).calculateFlipScore();
+flip2 = (flip_score - flip_score2);
 
-lda.classifyResponses(false); % Check flag
+%% tuning
+tuning_light = hda(1).direction_info(:, 2);
+tuning_dark = hda(2).direction_info(:, 2);
 
-lda.viewClusteredResponses()
+tuning_diff = (tuning_light - tuning_dark);
 
-clust_id = lda.getClusters();
+% i think at this point, we can't really trust the "head direction" thing...
+%is_stable = hda(1).is_head_direction;% & hda(2).is_head_direction;
+%nwestuff
+data = zeros(size(data_l, 1), 2 * size(data_l, 2));
+for c = 1:size(data_l, 1)
+    [~, shift] = max(data_l(c, :));
+    light = rescale(circshift(data_l(c, :), 30 - shift));
+    
+    %  [~, shift] = max(data_d(c, :));
 
-%% Messing with the decoding now..
-
-% when choosing a tuning curve, should i be using the one from light, dark, or both?
-
-% light first
-
-tuning_l = hda(1).getBinnedData();
-timeseries = hda(1).getTimeSeries();
-
-
-curr_tuning = tuning_l(clust_id == 1, :);
-curr_ts = timeseries(clust_id == 1, :);
-
-decoded_heading = decodePopulationActivity(curr_tuning, curr_ts);
-
-%
-
-% data_l = hda(1).getBinnedData();
-% data_d = hda(2).getBinnedData();
+    dark = rescale(circshift(data_d(c, :), 30 - shift));
+    data(c, :) = (cat(2, light,  dark));
+end
 % 
-% %% Lobality
-% flip_score = hda(1).calculateFlipScore();
-% flip_score2 = hda(2).calculateFlipScore();
-% flip2 = (flip_score - flip_score2);
-% 
-% %% tuning
-% tuning_light = hda(1).direction_info(:, 2);
-% tuning_dark = hda(2).direction_info(:, 2);
-% 
-% tuning_diff = (tuning_light - tuning_dark);
-%
+% all_data = data(is_stable, :);
+% data1 = data(flip_score > 0.6 & is_stable', :);
+% data2 = data(flip_score <= 0.6 & is_stable', :);
+
+
+out = clusterer(data, true);
+
+dh
+
+
 %% Logical skip
 %is_stable = true(1, length(hda(1).is_head_direction))';%& hda(2).is_head_direction';
 % 
