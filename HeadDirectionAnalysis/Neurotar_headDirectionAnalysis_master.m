@@ -12,7 +12,7 @@ floating = importdata(f_fn);
 data = importdata(n_fn);
 
 % Separation happens here
-hda = HeadDirectionAnalysis(data, floating);
+hda = HeadDirectionAnalyzer(data, floating);
 hda.setHeadingFlag(false)  % Heading false is using alpha
 %hda.removeMovingSamples();
 

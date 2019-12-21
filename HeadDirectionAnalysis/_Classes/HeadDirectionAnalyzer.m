@@ -37,7 +37,7 @@ classdef HeadDirectionAnalyzer < handle
             obj.data     = data;
             obj.floating = floating;
             
-            obj.getHeading();
+            obj.extractHeading();
         end
  
         function printStats(obj)
@@ -179,6 +179,10 @@ classdef HeadDirectionAnalyzer < handle
     
    
     methods % Setters and getters
+        function out = getHeading(obj)
+            out = obj.floating.heading;
+        end
+        
         function out = getBinnedData(obj)
             out = obj.binData();  % Call w/o input arguments so it correctly gets the thing
         end
@@ -216,7 +220,7 @@ classdef HeadDirectionAnalyzer < handle
             y = min(y, 2 * obj.RADIUS);
         end
         
-        function getHeading(obj)
+        function extractHeading(obj)
             % Converts alpha to heading via some transformations we figured out
             if obj.fix_heading_flag
                 obj.floating.heading = calculateHeading(...

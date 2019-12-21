@@ -266,16 +266,13 @@ classdef LightDarkAnalyzer < handle
         
         
         function correctDarkDrift(obj)
-            
-            %% this is filty, super spaghetti... but it works.. for now lol
-            n_segments = 5;
+            n_segments = 10;
             
             data = obj.dark_hda.data.spikes;
             heading = obj.dark_hda.floating.heading;
             segmented_data = obj.segmentData(data, n_segments);
             segmented_heading = obj.segmentData(heading', n_segments);
             
-            tuning_curve = zeros(size(obj.dark_data, 1), size(obj.dark_data, 2), n_segments);
             for i_segment = 1:n_segments
                 tuning_curve(:, :, i_segment) = obj.binData([], segmented_data{i_segment}, segmented_heading{i_segment});
             end
@@ -298,15 +295,13 @@ classdef LightDarkAnalyzer < handle
             for i_cell = 1:size(tuning_curve, 1)
                 %fit
                 coeffs = polyfit(1:n_segments, peak(i_cell, :), 1);
-                slope = coeffs(1);     
+                slope = coeffs(1);
+                
+                curr = squeeze(tuning_curve(i_cell, :, :));
                     for i_seg = 1:n_segments
-                        curr_trace = squeeze(tuning_curve(i_cell, :, i_seg));
-                        temp(:, i_seg) = circshift(curr_trace, round(-(slope * i_seg)));
+                        curr_trace = curr(:, i_seg)
+                        circshift(curr_trace, (slope * i_seg))
                     end
-                    
-                obj.dark_data(i_cell, :) = mean(temp, 2);
-            end
-                 
         end
         
         

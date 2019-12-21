@@ -35,12 +35,26 @@ end
 
 lda = LightDarkAnalyzer(hda(1), hda(2));
 
-lda.classifyResponses(false); % Check flag
+lda.correctDarkDrift();
 
-lda.viewClusteredResponses()
+lda.classifyResponses(true); % Check flag
+
+%lda.viewClusteredResponses()
 
 clust_id = lda.getClusters();
 
+
+flip_score = hda(1).calculateFlipScore();
+
+figure
+h = histogram(flip_score(clust_id == 1), 10);
+hold on
+for ii = 2:max(clust_id)
+    histogram(flip_score(clust_id == ii), 'BinEdges', h.BinEdges)
+end
+
+
+%{
 %% Messing with the decoding now..
 
 % when choosing a tuning curve, should i be using the one from light, dark, or both?
@@ -50,11 +64,39 @@ clust_id = lda.getClusters();
 tuning_l = hda(1).getBinnedData();
 timeseries = hda(1).getTimeSeries();
 
+for c = unique(clust_id)'
 
-curr_tuning = tuning_l(clust_id == 1, :);
-curr_ts = timeseries(clust_id == 1, :);
+curr_tuning = tuning_l(clust_id == c, :);
+curr_ts = timeseries(clust_id == c, :);
 
 decoded_heading = decodePopulationActivity(curr_tuning, curr_ts);
+
+heading = rescale(hda(1).getHeading(), 0, 120);
+
+
+prediction_error = abs(heading - predicted_heading);
+prediction_error(prediction_error > 60) = 60;
+prediction_error = prediction_error * 360/120;
+
+figure
+subplot(3, 2, [1, 2])
+plot(heading, 'k:')
+hold on
+plot(predicted_heading)
+hold on
+ylabel('heading')
+
+
+subplot(3, 2, [3, 4])
+plot(prediction_error)
+title('Predictior Error')
+ylabel('Error')
+
+subplot(3, 2, 5)
+histogram(prediction_error)
+pause
+end
+%}
 
 %
 
