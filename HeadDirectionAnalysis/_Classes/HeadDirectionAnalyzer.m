@@ -18,7 +18,7 @@ classdef HeadDirectionAnalyzer < handle
         is_unilobed logical
         
         fix_heading_flag logical = false;
-        bin_width double = 3;
+        bin_width double = 6; % previously 3
         shuffled_threshold double
     end
     
@@ -116,6 +116,8 @@ classdef HeadDirectionAnalyzer < handle
     
                     osiVec(ct) = (max([1 pref])-max([1 orth]))/(max([1 pref])+max([1 orth]));
                 end
+                
+                obj.is_head_direction = osiVec > 0.3;
         end
         
         function removeMovingSamples(obj, speed_threshold, peak_width, search_window)
@@ -274,7 +276,8 @@ classdef HeadDirectionAnalyzer < handle
         function out = binData(obj, bin_width, data, heading, fold_flag)
             % Bins data based on a determined bindwidth
             
-            %% added a bunch of stuff in case we want folding.. this is b/c we only want to fold sometimes
+            % added a bunch of stuff in case we want folding.. this is b/c we only want to fold sometimes
+            %%  In case of missing arguments
             if nargin < 2 || isempty(bin_width)
                 bin_width = obj.bin_width;
             end
@@ -289,16 +292,18 @@ classdef HeadDirectionAnalyzer < handle
             if nargin < 5 || isempty(fold_flag)
                 fold_flag = false;
             end
+            
+            %%
             % Changed this to be bin_width of 3, and a smoothing filter, a la Giocomo et al 2014, Curr Bio
             if fold_flag
-            bin_edges = -360:bin_width:360; % Because alpha is [-180,180];
+                bin_edges = -360:bin_width:360; % Because alpha is [-180,180];
             else 
                 bin_edges = -180:bin_width:180;
             end
             % This is the doubling procedure that's documented in the Jeffrey paper
             %heading = wrapTo180(heading * 2);    
             if fold_flag
-            groups = discretize(heading * 2, bin_edges); % doubled
+                groups = discretize(heading * 2, bin_edges); % doubled
             else
                 groups = discretize(heading, bin_edges);
             end
@@ -307,7 +312,7 @@ classdef HeadDirectionAnalyzer < handle
             
             for bin = 1:length(u_groups)
                 for c = 1:size(data, 1)
-                    out(c, bin) = mean(data(c, groups == u_groups(bin)));
+                    out(c, bin) = mean(data(c, groups  == u_groups(bin)));
                 end
             end
             
@@ -315,10 +320,10 @@ classdef HeadDirectionAnalyzer < handle
             
             % wrap to 2pi
             if fold_flag
-            out = mean(cat(3, out(:, 1:120), out(:, 121:end)), 3);
+                out = mean(cat(3, out(:, 1:length(u_groups)/2), out(:, length(u_groups)/2 + 1:end)), 3);
             end
             
-            out = movmean(out, 10, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
+            out = movmean(out, 5, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
         end
     end
     

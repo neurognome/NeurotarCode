@@ -29,23 +29,29 @@ classdef LightDarkAnalyzer < handle
             if nargin < 2 || isempty(check_flag)
                 check_flag = true;
             end
+            light_tuning = obj.light_data;
+            dark_darkdata = obj.dark_data;
             
-            data = zeros(size(obj.light_data, 1), size(obj.dark_data, 2) + size(obj.light_data, 2));
             
-            for c = 1:size(obj.light_data, 1)
-                
+            % Adding this new "doubling procedure', to increase the "repeats"
+            data = zeros(size(light_tuning, 1), (size(dark_darkdata, 2) + size(light_tuning, 2)));
+            
+            % Preprocess and fit the data
+            for c = 1:size(light_tuning, 1)
+                % Find the proper offset
                 bound = @(x, bl, bu) min(max(x, bl), bu);
                 modelfun = @(b, x) b(1) + ...
                     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
                     max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
                 
-                coeffs = obj.fitDoubleGaussian(obj.light_data(c, :), modelfun);
+                coeffs = obj.fitDoubleGaussian(light_tuning(c, :), modelfun);
                 
-                light = (circshift(obj.light_data(c, :), 30 - round(coeffs(3))));
+                % Shift based on light offset
+                light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));
                 
-                %coeffs = obj.fitDoubleGaussian(obj.dark_data(c, :), modelfun);
+                %coeffs = obj.fitDoubleGaussian(dark_data(c, :), modelfun);
                 
-                dark = (circshift(obj.dark_data(c, :), 30 - round(coeffs(3))));
+                dark = (circshift(dark_darkdata(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));
                 
                 light = detrend(light, 0);
                 dark = detrend(dark, 0);
@@ -53,6 +59,10 @@ classdef LightDarkAnalyzer < handle
                 data(c, :) = zscore(cat(2, light,  dark));
             end
             
+            % here we remove junk cells
+            %data = data(obj.light_hda.is_head_direction, :);
+            
+            % Run clustering
             obj.clust_id = obj.cluster(data);
             obj.n_clusters = max(unique(obj.clust_id));
             
@@ -66,7 +76,7 @@ classdef LightDarkAnalyzer < handle
             for c = 1:size(obj.light_data, 1)
                 light = zscore(obj.light_data(c, :));
                 
-                dark = zscore(obj.dark_data(c, :));
+                dark = zscore(dark_data(c, :));
                 unshifted_data(c, :) = (cat(2, light,  dark));
             end
             
@@ -111,7 +121,6 @@ classdef LightDarkAnalyzer < handle
             Z = linkage(PCA_resp,'ward','euclidean');
             dendrogram(Z)
             set(gcf,'color',[1 1 1])
-            shg
             numClust = input('How many clusters? ');    % Determine cluster number on dendrogram
             %saveas(gcf,'Cluster_dendrogram','fig')
             close all
@@ -264,15 +273,17 @@ classdef LightDarkAnalyzer < handle
         
         
         
-        
         function correctDarkDrift(obj)
-            n_segments = 10;
+            
+            %% this is filthy, super spaghetti... but it works.. for now lol
+            n_segments = 5;
             
             data = obj.dark_hda.data.spikes;
             heading = obj.dark_hda.floating.heading;
             segmented_data = obj.segmentData(data, n_segments);
             segmented_heading = obj.segmentData(heading', n_segments);
             
+            tuning_curve = zeros(size(obj.dark_data, 1), size(obj.dark_data, 2), n_segments);
             for i_segment = 1:n_segments
                 tuning_curve(:, :, i_segment) = obj.binData([], segmented_data{i_segment}, segmented_heading{i_segment});
             end
@@ -291,17 +302,32 @@ classdef LightDarkAnalyzer < handle
                 end
             end
             
+
+            % Adjust each to the mean?
+%             mean_peak = round(mean(peak, 2));
+%             rounded_peaks = round(peak);
+%             
+%             for i_cell = 1:size(tuning_curve, 1)
+%                 for i_seg = 1:n_segments
+%                       curr_trace = squeeze(tuning_curve(i_cell, :, i_seg));
+%                       temp(:, i_seg) = circshift(curr_trace, mean_peak(i_cell) - rounded_peaks(i_cell, i_seg));
+%                 end
+%                 
+%                 obj.dark_data(i_cell, :) = mean(temp, 2);
+%             end
             
             for i_cell = 1:size(tuning_curve, 1)
                 %fit
                 coeffs = polyfit(1:n_segments, peak(i_cell, :), 1);
-                slope = coeffs(1);
-                
-                curr = squeeze(tuning_curve(i_cell, :, :));
+                slope = coeffs(1);     
                     for i_seg = 1:n_segments
-                        curr_trace = curr(:, i_seg)
-                        circshift(curr_trace, (slope * i_seg))
+                        curr_trace = squeeze(tuning_curve(i_cell, :, i_seg));
+                        temp(:, i_seg) = circshift(curr_trace, round(-(slope * i_seg)));
                     end
+                    
+                obj.dark_data(i_cell, :) = mean(temp, 2);
+            end
+                 
         end
         
         

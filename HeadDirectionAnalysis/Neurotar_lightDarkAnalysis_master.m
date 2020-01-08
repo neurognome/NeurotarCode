@@ -21,7 +21,7 @@ for i_hda = 1:length(hda)
     %hda(i_hda).removeMovingSamples(); 
    
     hda(i_hda).calculateHeadDirectionIdx_ori();
-    hda(i_hda).calculateHeadDirectionIdx_direction();
+   % hda(i_hda).calculateHeadDirectionIdx_direction();
     hda(i_hda).calculatePreferredDirection('vectorsum');
         
   % hda(i_hda).quadrantAnalysisHeadDirection(true);
@@ -35,7 +35,7 @@ end
 
 lda = LightDarkAnalyzer(hda(1), hda(2));
 
-lda.correctDarkDrift();
+%lda.correctDarkDrift();
 
 lda.classifyResponses(true); % Check flag
 
