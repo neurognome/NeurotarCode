@@ -74,9 +74,10 @@ classdef HeadDirectionAnalyzer < handle
                     fprintf('Invalid method provided (methods: vectorsum or max)\n')
                     return
             end
+            
+            obj.direction_info = out;
         end
-        
-        
+
         function calculateHeadDirectionIdx_direction(obj)
             % The preferred direction here is calculated by splitting the recording into sections (generally quadrants), then
             % seeing how "stable" the responses are across the sections. A correlation greater than 0.2 is considered to be
@@ -99,7 +100,9 @@ classdef HeadDirectionAnalyzer < handle
                 binned_data = obj.binData();
                 
                 % Prepare data
-                n_ori = size(binned_data, 2);
+               % oriPref = obj.getPreferredDirection();
+              %  oriPref = round(oriPref .* size(binned_data, 2) ./ (2*pi));
+                 n_ori = size(binned_data, 2);
                 [~, oriPref] = max(binned_data,[],2);
                 ct = 0;
                 win = 2;
@@ -115,6 +118,10 @@ classdef HeadDirectionAnalyzer < handle
                                       min([length(resp), mod(oriPref(ct) + n_ori / 4 - 1, n_ori) + win + 1])]));
     
                     osiVec(ct) = (max([1 pref])-max([1 orth]))/(max([1 pref])+max([1 orth]));
+%                     if osiVec(ct) > 0.2
+%                         plot(resp)
+%                         title(osiVec(ct))
+%                     end
                 end
                 
                 obj.is_head_direction = osiVec > 0.3;
@@ -337,7 +344,7 @@ classdef HeadDirectionAnalyzer < handle
             
             getHorz = @(v, theta) v .* cos(theta);
             getVert = @(v, theta) v .* sin(theta);
-            getAng = @(vert, horz) atan(vert ./ horz);
+            getAng = @(vert, horz) atan2(vert, horz);
             getMag = @(vert, horz) sqrt(horz ^ 2 + vert ^ 2);
             
             if fold_flag

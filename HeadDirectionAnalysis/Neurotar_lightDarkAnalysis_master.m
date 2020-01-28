@@ -19,10 +19,10 @@ hda(2) = HeadDirectionAnalyzer(dark_data, dark_floating);
 for i_hda = 1:length(hda)
     hda(i_hda).setHeadingFlag(false);
     %hda(i_hda).removeMovingSamples(); 
-   
+       hda(i_hda).calculatePreferredDirection('vectorsum');
+ 
     hda(i_hda).calculateHeadDirectionIdx_ori();
-   % hda(i_hda).calculateHeadDirectionIdx_direction();
-    hda(i_hda).calculatePreferredDirection('vectorsum');
+    % hda(i_hda).calculateHeadDirectionIdx_direction();
         
   % hda(i_hda).quadrantAnalysisHeadDirection(true);
   % bl_info(i_hda) = hda(i_hda).bilobalityAnalysis(false);
@@ -31,8 +31,8 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Above this line is just "preprocessing" of the the light and dark data
 % below  this line is the analyses at the current point...
-%% You can load previous data for here
 
+%% You can load previous data for here
 lda = LightDarkAnalyzer(hda(1), hda(2));
 
 %lda.correctDarkDrift();
@@ -43,7 +43,113 @@ lda.classifyResponses(true); % Check flag
 
 clust_id = lda.getClusters();
 
+%% Looking at each group unaligned
+curr_clust = 4
+ct = 1;
+clear max_idx
+for cell_id = find(clust_id == curr_clust)'
+    [~, max_idx(ct)] = max(lda.light_data(cell_id ,:));
+    ct = ct + 1;
+end
 
+group_3 = [lda.light_data(clust_id == curr_clust, :), lda.dark_data(clust_id == curr_clust, :)];
+[~, sorting_vec] = sort(max_idx);
+group_3 = group_3(sorting_vec, :);
+resc = rescale(group_3, 'InputMin', min(group_3, [], 2), 'InputMax', max(group_3, [], 2));
+% for ii = 1:size(group_3, 1)
+%     resc(ii, :) = zscore(group_3(ii, :));
+% end
+figure
+imagesc(resc)
+colormap(flipud(bone))
+
+%% Decoding each group...
+tuning_l = hda(1).getBinnedData();
+timeseries = [hda(1).getTimeSeries(), hda(2).getTimeSeries()];
+
+for c = unique(clust_id)'
+
+curr_tuning = tuning_l(clust_id == c, :);
+curr_ts = timeseries(clust_id == c, :);
+
+decoded_heading = decodePopulationActivity(curr_tuning, curr_ts);
+
+heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 60);
+
+
+prediction_error = abs(heading - decoded_heading);
+prediction_error(prediction_error > 60) = 60;
+prediction_error = prediction_error * 360/120;
+
+figure
+subplot(3, 2, [1, 2])
+plot(heading, 'k:')
+hold on
+plot(decoded_heading)
+hold on
+ylabel('heading')
+
+
+subplot(3, 2, [3, 4])
+plot(prediction_error)
+title('Prediction Error')
+ylabel('Error')
+
+subplot(3, 2, 5)
+histogram(prediction_error)
+pause
+end
+
+%% Gen 2
+c = 3
+% Decoding each group...
+tuning_l = hda(1).getBinnedData();
+tuning_d = hda(2).getBinnedData();
+timeseries = [hda(1).getTimeSeries() hda(2).getTimeSeries()];
+
+curr_tuning = mean(cat(3, tuning_l(clust_id == c, :), tuning_d(clust_id == c, :)), 3);
+curr_ts = timeseries(clust_id == c, :);
+
+[decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts);
+
+heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 60);
+
+
+prediction_error = abs(heading - decoded_heading);
+prediction_error(prediction_error > 60) = 60;
+prediction_error = prediction_error * 360/120;
+
+
+%% new stufff
+rescaled_heading = ...
+    rescale(heading_distribution, 'InputMin', min(heading_distribution, [], 2), 'InputMax', max(heading_distribution, [], 2));
+
+clims = [0.5 0.9];
+imagesc(movmean(rescaled_heading(10000:12000, :), 1)', clims)
+colormap(magma)
+axis off
+
+
+%plot(heading, '--r')
+% 
+% figure
+% subplot(3, 2, [1, 2])
+% plot(heading, 'k:')
+% hold on
+% plot(decoded_heading)
+% hold on
+% ylabel('heading')
+% 
+% 
+% subplot(3, 2, [3, 4])
+% plot(prediction_error)
+% title('Predictiol Error')
+% ylabel('Error')
+% 
+% subplot(3, 2, 5)
+% histogram(prediction_error)
+
+%%
 flip_score = hda(1).calculateFlipScore();
 
 figure
@@ -52,7 +158,6 @@ hold on
 for ii = 2:max(clust_id)
     histogram(flip_score(clust_id == ii), 'BinEdges', h.BinEdges)
 end
-
 
 %{
 %% Messing with the decoding now..

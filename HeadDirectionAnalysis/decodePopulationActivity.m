@@ -1,4 +1,4 @@
-function [predicted_heading] = decodePopulationActivity(tuning_curve, time_series, display_flag, normalize_flag)
+function [predicted_heading, heading_distribution] = decodePopulationActivity(tuning_curve, time_series, display_flag, normalize_flag)
 % At each time point (t), each given neuron contributes a set of vectors, defined by its tuning curve. This set
 % of vectors is then scaled by the activity of that neuron at a given time point, and averaged across all neurons
 % to get a single population activity vector
@@ -24,7 +24,7 @@ if normalize_flag
         obj.time_series(ii, :) = temp;
     end
     
-    obj.time_series = rescale(time_series,...
+    time_series = rescale(time_series,...
         'InputMin', min(time_series, [], 2),...
         'InputMax', max(time_series, [], 2));
 end
@@ -33,6 +33,10 @@ end
 %                 temp = (max(timeseries(:, t), 0) .* smoothed_wts) ./ sum(smoothed_wts); % nonzero weights are lost
 %                 direction_distributions(t, :) = sum(temp);
 %             end
+
+% this is janky af but ok, not sure if i want to keep this
+sigmoid_sharpness = 5; % > 5 or else you lose the asymptotes
+modelfun = @(x)   (tanh(sigmoid_sharpness * (x - 0.5)) + 1) .* 0.5; %10 defines sharpness
 
 group_method = 'movmean';
 switch group_method
@@ -46,25 +50,40 @@ switch group_method
         end
         
     case 'movmean'
-        bin_size = 1;
-        pre_post_samples = 4;
+        pre_post_samples = 10;
         heading_distribution = zeros(size(time_series, 2), size(tuning_wts, 2));
         for t = 1:size(time_series, 2)
             %temp = (max(mean(timeseries(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples, length(timeseries))), 2), 0) .* tuning_wts) ./ sum(tuning_wts); % nonzero weights are lost
-            heading_distribution(t, :) = sum((max(mean(...
-                obj.time_series(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples,...
-                length(time_series))), 2), 0) .* tuning_wts) ./ sum(tuning_wts)); % nonzero weights are lost);
+            activity = max(mean(...
+                time_series(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples,...
+                length(time_series))), 2), 0);
+            heading_distribution(t, :) = sum((activity) .* tuning_wts) ./ sum(tuning_wts); % nonzero weights are lost);
         end
 end
 
-bound = @(x, bl, bu) min(max(x, bl), bu);
-modelfun = @(b, x) b(1) + ...
-    max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
-    max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
+% 
+% bound = @(x, bl, bu) min(max(x, bl), bu);
+% % modelfun = @(b, x) b(1) + ...
+% %     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
+% %     max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
+% 
+% modelfun = @(b, x) b(1) + ...
+%     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2));
+% 
+% %% adding some "memory"
+% 
+% memory = 0;
+% for ii = 1:size(heading_distribution, 1)
+%     % ok for now, but to be more clever, we should have weighting dependent on the distance to the previous memory, scaling
+%     % fctors that decrease with increasing distance...
+%     current_heading_distribution = mean(heading_distribution(max(1, ii - memory) : ii, :), 1);
+% 
+%     coeffs(ii, :) = fitDoubleGaussian(current_heading_distribution, modelfun);
+% end
+% 
+% predicted_heading = coeffs(:, 3); % Location of first (bigger) peak
 
-coeffs = fitDoubleGaussian(heading_distribution, modelfun);
-
-predicted_heading = coeffs(:, 3); % Location of first (bigger) peak
+[~, predicted_heading] = max(heading_distribution, [], 2);
 
 %% Subfunctions
 function [coefficients, fit_quality] = fitDoubleGaussian(data, model)
@@ -73,21 +92,17 @@ function [coefficients, fit_quality] = fitDoubleGaussian(data, model)
 opts = statset('nlinfit');
 opts.FunValCheck = 'on';
 %opts.Display = 'final';
-coefficients = zeros(size(data, 1), 6);
-fit_quality = zeros(size(data, 1), 1);
-for c = 1:size(data, 1)
-    curr_data = data(c, :);
+
+beta0 = prepareBeta0(data);
+tbl = table([1:size(data, 2)]', data');
+try
+    mdl = fitnlm(tbl, model, beta0, 'Options', opts);
+    coefficients = mdl.Coefficients{:, 'Estimate'};
+    fit_quality = mdl.Rsquared.Adjusted;
+catch
+    coefficients = NaN;
+    fit_quality = 0;
     
-    beta0 = prepareBeta0(curr_data);
-    tbl = table([1:size(data, 2)]', data(c, :)');
-    try
-        mdl = fitnlm(tbl, model, beta0, 'Options', opts);
-        coefficients(c, :) = mdl.Coefficients{:, 'Estimate'};
-        fit_quality(c) = mdl.Rsquared.Adjusted;
-    catch
-        coefficients(c, :) = NaN;
-        fit_quality(c) = 0;
-    end
     
 end
 

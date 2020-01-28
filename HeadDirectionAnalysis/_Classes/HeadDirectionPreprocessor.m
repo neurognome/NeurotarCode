@@ -70,7 +70,8 @@ classdef HeadDirectionPreprocessor < NeurotarPreProcessor
             n_segments = recording_length / segment_length;
             
             if mod(n_segments, 1) ~= 0 % Not an integer
-                error('Something''s wrong, noninteger # of segments')
+                warning('Something''s wrong, noninteger # of segments,  rounding down')
+                n_segments = floor(n_segments);
             end
             
             flip_flop = 1;
