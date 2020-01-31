@@ -28,7 +28,6 @@ for i_hda = 1:length(hda)
   % bl_info(i_hda) = hda(i_hda).bilobalityAnalysis(false);
   % flip_score(i_hda, :) = hda(i_hda).calculateFlipScore();
 end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Above this line is just "preprocessing" of the the light and dark data
 % below  this line is the analyses at the current point...
 

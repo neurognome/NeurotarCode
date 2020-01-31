@@ -21,7 +21,7 @@ if normalize_flag
     for ii = 1:size(time_series, 1)
         temp = time_series(ii, :);
         temp(temp > cap(ii)) = cap(ii);
-        obj.time_series(ii, :) = temp;
+        time_series(ii, :) = temp;
     end
     
     time_series = rescale(time_series,...

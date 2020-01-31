@@ -283,9 +283,7 @@ classdef LightDarkAnalyzer < handle
             
             beta0 = [0, mag1, loc1, std1, mag2, loc2];
         end
-        
-        
-        
+                
         function correctDarkDrift(obj)
             
             %% this is filthy, super spaghetti... but it works.. for now lol
@@ -419,7 +417,7 @@ classdef LightDarkAnalyzer < handle
             if fold_flag
             out = mean(cat(3, out(:, 1:120), out(:, 121:end)), 3);
             end
-            
+
             out = movmean(out, 10, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
         end
     end
