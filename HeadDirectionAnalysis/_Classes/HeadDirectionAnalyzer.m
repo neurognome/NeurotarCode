@@ -335,7 +335,6 @@ classdef HeadDirectionAnalyzer < handle
             
             out = movmean(out, 5, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
             
-            keyboard;
         end
     end
     
