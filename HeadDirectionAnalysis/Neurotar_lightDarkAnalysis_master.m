@@ -42,6 +42,8 @@ lda.classifyResponses(true); % Check flag
 
 clust_id = lda.getClusters();
 
+% The following is for later..  
+%{
 %% Looking at each group unaligned
 curr_clust = 4
 ct = 1;
@@ -62,41 +64,46 @@ figure
 imagesc(resc)
 colormap(flipud(bone))
 
+%}
+
+
+
 %% Decoding each group...
 tuning_l = hda(1).getBinnedData();
 timeseries = [hda(1).getTimeSeries(), hda(2).getTimeSeries()];
 
+
+
 for c = unique(clust_id)'
 
-curr_tuning = tuning_l(clust_id == c, :);
-curr_ts = timeseries(clust_id == c, :);
+    curr_tuning = tuning_l(clust_id == c, :);
+    curr_ts = timeseries(clust_id == c, :);
 
-decoded_heading = decodePopulationActivity(curr_tuning, curr_ts);
-
-heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 60);
-
-
-prediction_error = abs(heading - decoded_heading);
-prediction_error(prediction_error > 60) = 60;
-prediction_error = prediction_error * 360/120;
-
-figure
-subplot(3, 2, [1, 2])
-plot(heading, 'k:')
-hold on
-plot(decoded_heading)
-hold on
-ylabel('heading')
+    decoded_heading = decodePopulationActivity(curr_tuning, curr_ts);
+    heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 60);
 
 
-subplot(3, 2, [3, 4])
-plot(prediction_error)
-title('Prediction Error')
-ylabel('Error')
+    prediction_error = abs(heading - decoded_heading);
+    prediction_error(prediction_error > 60) = 60;
+    prediction_error = prediction_error * 360/120;
 
-subplot(3, 2, 5)
-histogram(prediction_error)
-pause
+    figure
+    subplot(3, 2, [1, 2])
+    plot(heading, 'k:')
+    hold on
+    plot(decoded_heading)
+    hold on
+    ylabel('heading')
+    title(sprintf('Prediction for cluster %d', c))
+
+    subplot(3, 2, [3, 4])
+    plot(prediction_error)
+    title('Prediction Error')
+    ylabel('Error')
+
+    subplot(3, 2, 5)
+    histogram(prediction_error)
+    pause
 end
 
 %% Gen 2

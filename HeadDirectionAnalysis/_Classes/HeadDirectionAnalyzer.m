@@ -345,7 +345,7 @@ classdef HeadDirectionAnalyzer < handle
             end
             
             fold_flag = false; % moved the angle doubling elsewhere, but keeping here for now just in case
-            
+                
             getHorz = @(v, theta) v .* cos(theta);
             getVert = @(v, theta) v .* sin(theta);
             getAng = @(vert, horz) atan2(vert, horz);
@@ -353,7 +353,7 @@ classdef HeadDirectionAnalyzer < handle
             
             if fold_flag
                 data = mean([data(1:size(data, 2)/2); data(size(data, 2)/2 + 1:end)]);
-                theta = linspace(0, 2*pi, length(data));
+                  theta = linspace(0, 2*pi, length(data));
                 warning('Because of the angle doubling, don''t particularly trust the actual values for pref dir')
             else
                 theta = linspace(0, 2*pi, length(data));

@@ -15,6 +15,9 @@ tuning_wts = rescale(tuning_curve,...
     'InputMin', min(tuning_curve, [], 2),...
     'InputMax', max(tuning_curve, [], 2));
 
+% Will's thing..
+tuning_wts(tuning_wts < 0.75) = 0;
+
 if normalize_flag
     % cap it
     cap = prctile(time_series', 99);
@@ -61,29 +64,29 @@ switch group_method
         end
 end
 
-% 
-% bound = @(x, bl, bu) min(max(x, bl), bu);
-% % modelfun = @(b, x) b(1) + ...
-% %     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
-% %     max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
-% 
-% modelfun = @(b, x) b(1) + ...
-%     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2));
-% 
-% %% adding some "memory"
-% 
-% memory = 0;
-% for ii = 1:size(heading_distribution, 1)
-%     % ok for now, but to be more clever, we should have weighting dependent on the distance to the previous memory, scaling
-%     % fctors that decrease with increasing distance...
-%     current_heading_distribution = mean(heading_distribution(max(1, ii - memory) : ii, :), 1);
-% 
-%     coeffs(ii, :) = fitDoubleGaussian(current_heading_distribution, modelfun);
-% end
-% 
-% predicted_heading = coeffs(:, 3); % Location of first (bigger) peak
 
-[~, predicted_heading] = max(heading_distribution, [], 2);
+bound = @(x, bl, bu) min(max(x, bl), bu);
+% modelfun = @(b, x) b(1) + ...
+%     max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
+%     max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
+
+modelfun = @(b, x) b(1) + ...
+    max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2));
+
+%% adding some "memory"
+
+memory = 0;
+for ii = 1:size(heading_distribution, 1)
+    % ok for now, but to be more clever, we should have weighting dependent on the distance to the previous memory, scaling
+    % fctors that decrease with increasing distance...
+    current_heading_distribution = mean(heading_distribution(max(1, ii - memory) : ii, :), 1);
+
+    coeffs(ii, :) = fitDoubleGaussian(current_heading_distribution, modelfun);
+end
+
+predicted_heading = coeffs(:, 3); % Location of first (bigger) peak
+
+% [~, predicted_heading] = max(heading_distribution, [], 2);
 
 %% Subfunctions
 function [coefficients, fit_quality] = fitDoubleGaussian(data, model)
