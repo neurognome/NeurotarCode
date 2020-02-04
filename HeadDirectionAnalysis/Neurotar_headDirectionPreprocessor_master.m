@@ -1,5 +1,7 @@
 %Neurotar_headDirectionAnalysis
 % Reformat to MMM###_MM_DD_IMAGING_S.xlsx
+addpath(genpath('E:\_Code\NeurotarCode'));
+
 clear;
 
 flicker_flag = true;

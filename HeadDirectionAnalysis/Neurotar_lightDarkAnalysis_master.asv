@@ -34,8 +34,6 @@ end
 % below  this line is the analyses at the current point...
 
 %% You can load previous data for here
-
-% all of ours analyses assume the binwidth of 3 doesn't change...
 lda = LightDarkAnalyzer(hda(1), hda(2));
 
 %lda.correctDarkDrift();
@@ -84,7 +82,14 @@ for c = unique(clust_id)'
     [decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts);
     heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 120);
 
-    decoded_heading = headingCorrector(decoded_heading, heading);
+    % Here we want to take the decoded heading and compare against the real heading to get minimum distances
+    heading_opts = cat(2, decoded_heading, decoded_heading + 60);  
+    heading_opts = mod(heading_opts, 120);    
+    [~, idx] = min(abs(heading_opts - heading), [], 2);
+    
+    for ii = 1:size(decoded_heading, 1)
+        decoded_heading(ii) = heading_opts(ii, idx(ii));
+    end
     
     prediction_error = abs(heading - decoded_heading);
     prediction_error(prediction_error > 60) = 60;
