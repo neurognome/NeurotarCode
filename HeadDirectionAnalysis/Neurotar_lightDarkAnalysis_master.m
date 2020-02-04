@@ -78,8 +78,8 @@ timeseries = [hda(1).getTimeSeries(), hda(2).getTimeSeries()];
 
 for c = unique(clust_id)'
 
-    curr_tuning = tuning_l;%(clust_id == c, :);
-    curr_ts = timeseries;%(clust_id == c, :);
+    curr_tuning = tuning_l(clust_id == c, :);
+    curr_ts = timeseries(clust_id == c, :);
 
     [decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts);
     heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, 120);
