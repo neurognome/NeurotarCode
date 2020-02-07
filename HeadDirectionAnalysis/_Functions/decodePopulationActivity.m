@@ -16,7 +16,7 @@ tuning_wts = rescale(tuning_curve,...
     'InputMax', max(tuning_curve, [], 2));
 
 % Will's thing..
-tuning_wts(tuning_wts < 0.75) = 0;
+%tuning_wts(tuning_wts < 0.75) = 0;
 
 if normalize_flag
     % cap it

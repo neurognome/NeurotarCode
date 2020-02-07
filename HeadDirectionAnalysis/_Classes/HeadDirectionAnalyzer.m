@@ -18,7 +18,7 @@ classdef HeadDirectionAnalyzer < handle
         is_unilobed logical
         
         fix_heading_flag logical = false;
-        bin_width double = 3; % previously 3
+        bin_width double = 1; % previously 3
         shuffled_threshold double
     end
     
@@ -95,7 +95,13 @@ classdef HeadDirectionAnalyzer < handle
             
             obj.is_head_direction = obj.direction_info(:, 2)' > 0.2;% temporary thershold obj.shuffled_threshold;
         end
-        
+
+        function tuning = calculateHeadDirection_testing(obj)
+            binned_data = obj.binData();
+            tuning = var(binned_data, 0, 2);
+            obj.is_head_direction = tuning > prctile(tuning, 80);
+        end
+
         function osiVec = calculateHeadDirectionIdx_ori(obj)
                 binned_data = obj.binData();
                 
@@ -284,7 +290,6 @@ classdef HeadDirectionAnalyzer < handle
             % Bins data based on a determined bindwidth
             
             % added a bunch of stuff in case we want folding.. this is b/c we only want to fold sometimes
-            %%  In case of missing arguments
             if nargin < 2 || isempty(bin_width)
                 bin_width = obj.bin_width;
             end
@@ -315,8 +320,6 @@ classdef HeadDirectionAnalyzer < handle
             else
                 groups = discretize(heading, bin_edges);
             end
-
-           
             u_groups = 1:length(bin_edges) - 1; % Changed because sometimes not all groups represented?
             out = zeros(size(data, 1), length(u_groups));
             
@@ -332,8 +335,7 @@ classdef HeadDirectionAnalyzer < handle
             if fold_flag
                 out = mean(cat(3, out(:, 1:length(u_groups)/2), out(:, length(u_groups)/2 + 1:end)), 3);
             end
-            
-            out = movmean(out, 5, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
+            out = movmean(out, 15/obj.bin_width, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
             
         end
     end

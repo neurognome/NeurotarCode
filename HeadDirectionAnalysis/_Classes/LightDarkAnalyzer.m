@@ -25,58 +25,56 @@ classdef LightDarkAnalyzer < handle
             %             obj.dark_data = obj.dark_data(obj.light_hda.is_head_direction, :);
         end
         
-        function classifyResponses(obj, check_flag)
+        function classifyResponses(obj, check_flag, light_tuning, dark_tuning)
             if nargin < 2 || isempty(check_flag)
                 check_flag = true;
             end
-            light_tuning = obj.light_data;
-            dark_tuning = obj.dark_data;
+
+            if nargin < 3 || isempty(light_tuning)
+                light_tuning = obj.light_data;
+            end
             
+            if nargin < 4 || isempty(dark_tuning)
+                dark_tuning = obj.dark_data;
+            end
             
             combined_tuning = mean(cat(3, light_tuning, dark_tuning), 3);
             data = zeros(size(light_tuning, 1), (size(dark_tuning, 2) + size(light_tuning, 2)));
             
-            % Preprocess and fit the data
-            for c = 1:size(light_tuning, 1)
+            % Preprocess and fit the data 
+            parfor c = 1:size(light_tuning, 1) % parallel for loop wows peed
                 % Find the proper offset
+                fprintf('Fitting gaussian for cell %d/%d \n', c, size(light_tuning, 1))
                 bound = @(x, bl, bu) min(max(x, bl), bu);
                 modelfun = @(b, x) b(1) + ...
-                    max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
-                    max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
-                
-                coeffs = obj.fitDoubleGaussian(light_tuning(c, :), modelfun);
-                
+                max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 ./ (2 * b(4) .^ 2)) + ...
+                max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 ./ (2 * b(4) .^ 2)); % Based on Michael natneuro paper
+
+                coeffs = obj.fitDoubleGaussian(combined_tuning(c, :), modelfun);
+
                 [coeffs_light, rsqr] = obj.fitDoubleGaussian(light_tuning(c, :), modelfun);
-                
-                % add stuff?
-                % Shift based on light offset
-                
-                if rsqr > 0.8
-                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_light(1); % baseline sub
+
+                % Baseline shift
+                if rsqr > 0
+                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - coeffs_light(1); % baseline sub
                 else
-                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - mean(light_tuning(c, :));
+                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - mean(light_tuning(c, :));
+                end
+                
+                % [coeffs_dark, rsqr] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
+                if rsqr > 0
+                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - coeffs_dark(1);
+                else
+                    dark = (circshift(dark_tuning(c, :), size(dark_tuning, 2)/4 - round(coeffs(3))));% - mean(dark_tuning(c, :));
                 end
 
-                
-                [coeffs_dark, rsqr] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
-                if rsqr > 0.8
-                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_dark(1);
-                else
-                    dark = (circshift(dark_tuning(c, :), size(dark_tuning, 2)/4 - round(coeffs(3)))) - mean(dark_tuning(c, :));
-                end
-                
-                
-             %  light = detrend(light, 0);
-              % dark = detrend(dark, 0);
-                
-                data(c, :) = cat(2, light,  dark);
+                % Put the processed data together for clustering
+                data(c, :) = cat(2, rescale(light), rescale(dark));
             end
-            
-            % here we remove junk cells
-            %data = data(obj.light_hda.is_head_direction, :);
-            
+           % data = data(obj.light_hda.is_head_direction, :);
+
             % Run clustering
-            obj.clust_id = obj.cluster(data);
+            obj.clust_id = obj.cluster(data, true); % PCA clustering
             obj.n_clusters = max(unique(obj.clust_id));
             
             if check_flag
@@ -116,43 +114,51 @@ classdef LightDarkAnalyzer < handle
             out = obj.clust_id;
         end
         
-        function clustID = cluster(obj, data)
+        function clustID = cluster(obj, data, pca_flag)
             % From Michael 20Dec2019
-            
+            if nargin < 3 || isempty(pca_flag)
+                pca_flag = true;
+            end
+
             varExpl = 0.98;    % criteria for variance explained (deteremines # of PCs)
             
             numSamp = size(data, 2);
             numCells = size(data, 1);
             
             %% PCA
-            [~,score,latent] = pca(data);
-            PC_var = cumsum(latent/sum(latent));
-            numPCs = find(PC_var > varExpl,1);
-            
+            if pca_flag
+                [~,score,latent] = pca(data);
+                PC_var = cumsum(latent/sum(latent));
+                numPCs = find(PC_var > varExpl,1);
+                PCA_resp = score(:, 1:numPCs);
+            else
+                PCA_resp = data;
+            end
+
             %% Cluster responses
-            PCA_resp = score(:,1:numPCs);
-            Z = linkage(PCA_resp,'ward','euclidean');
-            dendrogram(Z)
+            Z = linkage(PCA_resp, 'ward', 'euclidean');
+            dendrogram(Z, numCells)
             set(gcf,'color',[1 1 1])
             numClust = input('How many clusters? ');    % Determine cluster number on dendrogram
-            %saveas(gcf,'Cluster_dendrogram','fig')
-            close all
             clustID = cluster(Z,'maxclust',numClust);
             
-            %% Recluster by correlation to mean response (to clean up sorting)
-            clusterMeanTraces = zeros(numClust, numSamp);
+
+      %% Recluster by correlation to mean response (to clean up sorting)
+      clusterMeanTraces = zeros(numClust, numSamp);
             for c = 1:numClust % calculate average traces
-                clusterMeanTraces(c,:) = mean(data(clustID==c,:));
+                clusterMeanTraces(c,:) = mean(data(clustID == c,:));
             end
+
             for n = 1:numCells % assign ased on CC to average traces
-                curr_trace = data(n,:);
+                curr_trace = data(n, :);
                 for c = 1:numClust
-                    CC = corrcoef(curr_trace,clusterMeanTraces(c,:));
+                    CC = corrcoef(curr_trace, clusterMeanTraces(c,:));
                     clustCC(c) = CC(2);
                 end
-                [~,clustID(n)] = max(clustCC);
+                [~, clustID(n)] = max(clustCC);
             end
-            
+
+
         end
         
         function checkClusteringPerformance(obj, data)
@@ -176,7 +182,6 @@ classdef LightDarkAnalyzer < handle
         function plotResults(obj, data)
             cluster_mean_traces = zeros(obj.n_clusters, size(data, 2));
             cluster_se = zeros(obj.n_clusters, size(data, 2));
-            
             ct = 1;
             for c = unique(obj.clust_id)'
                 cluster_mean_traces(ct, :) = mean(data(obj.clust_id == c, :));
@@ -184,7 +189,7 @@ classdef LightDarkAnalyzer < handle
                 ct = ct + 1;
             end
             
-            figure(1)
+            figure
             for c = 1:obj.n_clusters
                 legend_text{c} = ['Cluster #' num2str(c)];
             end
@@ -283,9 +288,9 @@ classdef LightDarkAnalyzer < handle
             
             beta0 = [0, mag1, loc1, std1, mag2, loc2];
         end
-                
+
         function correctDarkDrift(obj)
-            
+
             %% this is filthy, super spaghetti... but it works.. for now lol
             n_segments = 5;
             
@@ -298,11 +303,11 @@ classdef LightDarkAnalyzer < handle
             for i_segment = 1:n_segments
                 tuning_curve(:, :, i_segment) = obj.binData([], segmented_data{i_segment}, segmented_heading{i_segment});
             end
-               bound = @(x, bl, bu) min(max(x, bl), bu);
-                modelfun = @(b, x) b(1) + ...
-                    max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
+            bound = @(x, bl, bu) min(max(x, bl), bu);
+            modelfun = @(b, x) b(1) + ...
+            max([0, b(2)]) * exp(-(x(:, 1) - bound(b(3), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)) + ...
                     max([0, b(5)]) * exp(-(x(:, 1) - bound(b(6), 0, x(end, 1))) .^ 2 / (2 * b(4) .^ 2)); % Based on Michael natneuro paper
-                
+
             % Fitting peak for each sigment
             disp('Fitting peaks for all cells across each segment...')
             for i_cell = 1:size(tuning_curve, 1)
@@ -343,7 +348,7 @@ classdef LightDarkAnalyzer < handle
 %                 
 %                 obj.dark_data(i_cell, :) = mean(temp, 2);
 %             end
-            
+
 %             for i_cell = 1:size(tuning_curve, 1)
 %                 %fit
 %                 coeffs = polyfit(1:n_segments, peak(i_cell, :), 1);
@@ -355,22 +360,22 @@ classdef LightDarkAnalyzer < handle
 %                     
 %                 obj.dark_data(i_cell, :) = mean(temp, 2);
 %             end
-                 
-        end
-        
-        
-        function segmented_data = segmentData(obj, data, n_sections)
-            total_dur = size(data, 2);
-            section_length = round(total_dur./n_sections);
-            
-            segmented_data = cell(n_sections, 1);
+
+end
+
+
+function segmented_data = segmentData(obj, data, n_sections)
+    total_dur = size(data, 2);
+    section_length = round(total_dur./n_sections);
+
+    segmented_data = cell(n_sections, 1);
             for q = 1:n_sections % Separate timeseries into sections
                 segmented_data{q}    = data(:, ...
                     (q - 1) * section_length + 1 : min(q*section_length, size(data, 2)));
             end
         end
         
-           function out = binData(obj, bin_width, data, heading, fold_flag)
+        function out = binData(obj, bin_width, data, heading, fold_flag)
             % Bins data based on a determined bindwidth
             
             %% added a bunch of stuff in case we want folding.. this is b/c we only want to fold sometimes
@@ -392,16 +397,16 @@ classdef LightDarkAnalyzer < handle
             % Changed this to be bin_width of 3, and a smoothing filter, a la Giocomo et al 2014, Curr Bio
             if fold_flag
             bin_edges = -360:bin_width:360; % Because alpha is [-180,180];
-            else 
-                bin_edges = -180:bin_width:180;
-            end
+        else 
+            bin_edges = -180:bin_width:180;
+        end
             % This is the doubling procedure that's documented in the Jeffrey paper
             %heading = wrapTo180(heading * 2);    
             if fold_flag
             groups = discretize(heading * 2, bin_edges); % doubled
-            else
-                groups = discretize(heading, bin_edges);
-            end
+        else
+            groups = discretize(heading, bin_edges);
+        end
             u_groups = 1:length(bin_edges) - 1; % Changed because sometimes not all groups represented?
             out = zeros(size(data, 1), length(u_groups));
             
@@ -415,7 +420,7 @@ classdef LightDarkAnalyzer < handle
             
             % wrap to 2pi
             if fold_flag
-            out = mean(cat(3, out(:, 1:120), out(:, 121:end)), 3);
+                out = mean(cat(3, out(:, 1:120), out(:, 121:end)), 3);
             end
 
             out = movmean(out, 10, 2); % 10 bins, 5 on each side, = 15 degree on each side, same as Giocomo et al 2014
