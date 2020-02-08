@@ -56,29 +56,38 @@ classdef LightDarkAnalyzer < handle
 
                 % Baseline shift
                 if rsqr > 0
-                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - coeffs_light(1); % baseline sub
+                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_light(1); % baseline sub
                 else
-                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - mean(light_tuning(c, :));
+                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - mean(light_tuning(c, :));
                 end
                 
-                % [coeffs_dark, rsqr] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
+                [coeffs_dark, rsqr] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
                 if rsqr > 0
-                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3))));% - coeffs_dark(1);
+                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_dark(1);
                 else
-                    dark = (circshift(dark_tuning(c, :), size(dark_tuning, 2)/4 - round(coeffs(3))));% - mean(dark_tuning(c, :));
+                    dark = (circshift(dark_tuning(c, :), size(dark_tuning, 2)/4 - round(coeffs(3)))) - mean(dark_tuning(c, :));
                 end
 
                 % Put the processed data together for clustering
                 data(c, :) = cat(2, rescale(light), rescale(dark));
             end
-           % data = data(obj.light_hda.is_head_direction, :);
+            % data = data(obj.light_hda.is_head_direction, :);
 
             % Run clustering
-            obj.clust_id = obj.cluster(data, true); % PCA clustering
-            obj.n_clusters = max(unique(obj.clust_id));
-            
-            if check_flag
-                obj.checkClusteringPerformance(data)
+            max_clust_flag = false;
+            while true
+                obj.clust_id = obj.cluster(data, true, max_clust_flag); % PCA clustering
+                obj.n_clusters = max(unique(obj.clust_id));
+                
+                if check_flag
+                    obj.checkClusteringPerformance(data)
+                end
+                happy = input('Happy? (0 no 1 yes): ');
+                if happy
+                    break
+                else
+                    max_clust_flag = true;
+                end
             end
         end
         
@@ -114,7 +123,7 @@ classdef LightDarkAnalyzer < handle
             out = obj.clust_id;
         end
         
-        function clustID = cluster(obj, data, pca_flag)
+        function clustID = cluster(obj, data, pca_flag, max_clust_flag)
             % From Michael 20Dec2019
             if nargin < 3 || isempty(pca_flag)
                 pca_flag = true;
@@ -136,15 +145,47 @@ classdef LightDarkAnalyzer < handle
             end
 
             %% Cluster responses
-            Z = linkage(PCA_resp, 'ward', 'euclidean');
-            dendrogram(Z, numCells)
-            set(gcf,'color',[1 1 1])
-            numClust = input('How many clusters? ');    % Determine cluster number on dendrogram
-            clustID = cluster(Z,'maxclust',numClust);
-            
 
-      %% Recluster by correlation to mean response (to clean up sorting)
-      clusterMeanTraces = zeros(numClust, numSamp);
+            max_clust_flag = false;
+            Z = linkage(PCA_resp, 'ward', 'euclidean');
+            f = figure;
+            if max_clust_flag
+                [~, ~, cluster_order] = dendrogram(Z, numCells)
+                set(gcf,'color',[1 1 1])
+                numClust = input('How many clusters? ');    % Determine cluster number on dendrogram
+                clustID = cluster(Z,'maxclust',numClust);
+            else
+                [~, ~, cluster_order] = dendrogram(Z, numCells, 'ColorThreshold', 9)
+                set(gcf,'color',[1 1 1])
+                clustID = cluster(Z, 'cutoff', 9, 'criterion', 'distance');
+                numClust = numel(unique(clustID)); 
+            end
+            order = unique(clustID(cluster_order), 'stable'); % don't sort
+            close(f)
+            
+            % Display the cluster ID
+            f = figure;
+            dendrogram(Z, numCells, 'ColorThreshold', 9)
+            hold on
+            line([xlim], [9, 9]);
+            labels = str2num(xticklabels);
+            ct = 1;
+            for ii = order'
+                mid_val = round(median(find(clustID(cluster_order) == ii)));
+                for c = 1:numCells
+                    if labels(c) == mid_val
+                        disp(labels)
+                        tick_pos(ct) = labels(c);
+                        ct = ct + 1;
+                    end
+                end
+            end
+            xticks(tick_pos)
+            xticklabels(order)
+            xlabel('Cluster ID')
+
+            %% Recluster by correlation to mean response (to clean up sorting)
+            clusterMeanTraces = zeros(numClust, numSamp);
             for c = 1:numClust % calculate average traces
                 clusterMeanTraces(c,:) = mean(data(clustID == c,:));
             end

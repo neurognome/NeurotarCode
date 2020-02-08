@@ -59,7 +59,7 @@ for curr_clust = unique(clust_id)'
         ct = ct + 1;
     end
     
-    group = [rescale(lda.light_data(clust_id == curr_clust, :)), rescale(lda.dark_data(clust_id == curr_clust, :))];
+    group = [(lda.light_data(clust_id == curr_clust, :)), (lda.dark_data(clust_id == curr_clust, :))];
     [~, sorting_vec] = sort(max_idx);
     group = group(sorting_vec, :);
     resc = rescale(group, 'InputMin', min(group, [], 2), 'InputMax', max(group, [], 2));
@@ -68,6 +68,7 @@ for curr_clust = unique(clust_id)'
     % end
     imagesc(resc)
     colormap(flipud(bone))
+    title(sprintf('Cluster #%d', curr_clust))
     pause
 end
 
@@ -96,9 +97,8 @@ for c = unique(clust_id)'
 
     [decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts);
     heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, size(tuning_l, 2));
-
-  
-    decoded_heading = headingCorrector(heading_distribution, heading);
+    
+    %decoded_heading = headingCorrector(heading_distribution, heading);
     
     % Split your data
     prediction_error = calculatePredictionError(decoded_heading, heading);
@@ -120,7 +120,7 @@ for c = unique(clust_id)'
     ylabel('Error')
 
     subplot(3, 2, [5, 6])
-    h1 = histogram(movmean(prediction_error_light, 200, 'omitnan'))
+    h1 = histogram(movmean(prediction_error_light, 200, 'omitnan'));
     hold on
     h2 = histogram(movmean(prediction_error_dark, 200, 'omitnan'), 'BinEdges', h1.BinEdges);
     h1.Normalization = 'probability';

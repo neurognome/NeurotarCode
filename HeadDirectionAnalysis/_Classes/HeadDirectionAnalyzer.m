@@ -18,7 +18,7 @@ classdef HeadDirectionAnalyzer < handle
         is_unilobed logical
         
         fix_heading_flag logical = false;
-        bin_width double = 1; % previously 3
+        bin_width double = 5; % previously 3
         shuffled_threshold double
     end
     
@@ -325,7 +325,11 @@ classdef HeadDirectionAnalyzer < handle
             
             for bin = 1:length(u_groups)
                 for c = 1:size(data, 1)
-                    out(c, bin) = mean(data(c, groups  == u_groups(bin)));
+                    temp = data(c, groups == u_groups(bin));
+                    % histogram(temp)
+                    % pause
+                    out(c, bin) = mean(temp(temp ~= 0));
+                    % out(c, bin) = mean(data(c, groups  == u_groups(bin)));
                 end
             end
             
