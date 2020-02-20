@@ -143,12 +143,11 @@ classdef LightDarkAnalyzer < handle
             else
                 PCA_resp = data;
             end
-
+%%%%%%%% Work on this part
             %% Cluster responses
-
-            max_clust_flag = false;
             Z = linkage(PCA_resp, 'ward', 'euclidean');
             f = figure;
+
             if max_clust_flag
                 [~, ~, cluster_order] = dendrogram(Z, numCells)
                 set(gcf,'color',[1 1 1])
@@ -162,7 +161,7 @@ classdef LightDarkAnalyzer < handle
             end
             order = unique(clustID(cluster_order), 'stable'); % don't sort
             close(f)
-            
+
             % Display the cluster ID
             f = figure;
             dendrogram(Z, numCells, 'ColorThreshold', 9)
@@ -174,7 +173,6 @@ classdef LightDarkAnalyzer < handle
                 mid_val = round(median(find(clustID(cluster_order) == ii)));
                 for c = 1:numCells
                     if labels(c) == mid_val
-                        disp(labels)
                         tick_pos(ct) = labels(c);
                         ct = ct + 1;
                     end
@@ -183,7 +181,7 @@ classdef LightDarkAnalyzer < handle
             xticks(tick_pos)
             xticklabels(order)
             xlabel('Cluster ID')
-
+%%%%%%%%%%%%%%%%%%
             %% Recluster by correlation to mean response (to clean up sorting)
             clusterMeanTraces = zeros(numClust, numSamp);
             for c = 1:numClust % calculate average traces
