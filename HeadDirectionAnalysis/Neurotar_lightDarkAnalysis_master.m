@@ -95,7 +95,7 @@ for c = unique(clust_id)'
     curr_tuning = mean(cat(3, tuning_l(clust_id == c, :), tuning_d(clust_id == c, :)), 3); % Combine
     curr_ts = timeseries(clust_id == c, :);
 
-    [decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts);
+    [decoded_heading, heading_distribution] = decodePopulationActivity_NORA(curr_tuning, curr_ts);
     heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, size(tuning_l, 2));
     
     %decoded_heading = headingCorrector(heading_distribution, heading);
