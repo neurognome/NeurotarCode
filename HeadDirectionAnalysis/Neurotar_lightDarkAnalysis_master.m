@@ -1,38 +1,7 @@
 % Choose a folder containing light dark stuff first
 % Go into the folder and run all the analysis pairwise with both, outputting all relevant data nad comparing ya
-addpath(genpath('E:\_Code\NeurotarCode\HeadDirectionAnalysis'))
-
-clear
-
-disp('Choose the folder containing your separated data: ')
-base_dir = uigetdir();
-
-cd(base_dir);
-
-files = dir('*.mat');
-for i_files = 1:length(files)
-    load(files(i_files).name);
-end
-
-%% Assign each into object and analyze
-hda(1) = HeadDirectionAnalyzer(light_data, light_floating);
-hda(2) = HeadDirectionAnalyzer(dark_data, dark_floating);
-
-
-for i_hda = 1:length(hda)
-    hda(i_hda).setHeadingFlag(false);
-    %hda(i_hda).removeMovingSamples(); 
-    hda(i_hda).calculatePreferredDirection('vectorsum');
- 
-    %hda(i_hda).calculateHeadDirectionIdx_ori();
-    hda(i_hda).calculateHeadDirection_testing();
-    
-    % hda(i_hda).calculateHeadDirectionIdx_direction();
-        
-  % hda(i_hda).quadrantAnalysisHeadDirection(true);
-  % bl_info(i_hda) = hda(i_hda).bilobalityAnalysis(false);
-  % flip_score(i_hda, :) = hda(i_hda).calculateFlipScore();
-end
+addpath(genpath('E:\_Code\NeurotarCode\HeadDirectionAnalysis'));
+hda = lightDarkPreprocess();
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Above this line is just "preprocessing" of the the light and dark data
 % below  this line is the analyses at the current point...
 
@@ -43,23 +12,27 @@ lda = LightDarkAnalyzer(hda(1), hda(2));
 
 %lda.correctDarkDrift();
 
-lda.classifyResponses(true); % Check flag
+[coeffs, rsqr] = lda.classifyResponses(true); % Check flag
 
 %lda.viewClusteredResponses()
 
 clust_id = lda.getClusters();
 
-%% Looking at each group unaligned
+%% Looking at each group unaligned, somethnig is definitely wrong here...
+light_data = lda.light_data(hda(1).is_head_direction, :);
+dark_data = lda.dark_data(hda(1).is_head_direction, :);
+clust_id = clust_id(hda(1).is_head_direction);
+
 figure
 for curr_clust = unique(clust_id)'
     ct = 1;
     clear max_idx
     for cell_id = find(clust_id == curr_clust)'
-        [~, max_idx(ct)] = max(lda.light_data(cell_id ,:));
+        [~, max_idx(ct)] = max(light_data(cell_id ,:));
         ct = ct + 1;
     end
     
-    group = [(lda.light_data(clust_id == curr_clust, :)), (lda.dark_data(clust_id == curr_clust, :))];
+    group = [(light_data(clust_id == curr_clust, :)), (dark_data(clust_id == curr_clust, :))];
     [~, sorting_vec] = sort(max_idx);
     group = group(sorting_vec, :);
     resc = rescale(group, 'InputMin', min(group, [], 2), 'InputMax', max(group, [], 2));
@@ -67,7 +40,7 @@ for curr_clust = unique(clust_id)'
     %     resc(ii, :) = zscore(group_3(ii, :));
     % end
     imagesc(resc)
-    colormap(flipud(bone))
+    %colormap(flipud(bone))
     title(sprintf('Cluster #%d', curr_clust))
     pause
 end
@@ -76,27 +49,55 @@ end
 %% Decoding each group...
 tuning_l = hda(1).getBinnedData();
 tuning_d = hda(2).getBinnedData();
+tuning = mean(cat(3, tuning_l, tuning_d), 3);
 
+%% Looking at the results
 timeseries = [hda(1).getTimeSeries(), hda(2).getTimeSeries()];
+heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, size(tuning_l, 2));
+[predicted_heading, heading_distribution] = decodePopulationActivity(tuning_l, timeseries, hda(1).is_head_direction);
+
+figure;
+plot(heading, 'k')
+hold on
+plot(predicted_heading, 'r');
 
 
-switch_frames = 3000; % frames
+
+tuning_l = tuning_l(hda(1).is_head_direction, :);
+tuning_d = tuning_d(hda(1).is_head_direction, :);
+timeseries = timeseries(hda(1).is_head_direction, :);
+
+
+% Below code only works with 5 min on-off recordings
+switch_frames = 6000; % frames
 switch_idx = 1:switch_frames:length(timeseries);
 
-% rewrite this to be more general
-light_idx = [switch_idx(1):switch_idx(2)-1, switch_idx(3):switch_idx(4)-1, switch_idx(5):length(timeseries)];
-dark_idx = [switch_idx(2):switch_idx(3)-1, switch_idx(4):switch_idx(5)-1];
+clear idx_mat
+for ii = 1:length(switch_idx)-1
+    idx_mat(ii, :) = [switch_idx(ii):switch_idx(ii+1)-1];
+end
+
+idx_mat(end+1, :) = switch_idx(end):length(timeseries);
+is_light = logical(mod(1:length(switch_idx), 2));
+light_idx = idx_mat(is_light, :)';
+dark_idx = idx_mat(~is_light, :)';
+
+light_idx = light_idx(:);
+dark_idx = dark_idx(:);
+
+
+
 for c = unique(clust_id)'
     
     % everything
 %     curr_tuning = mean(cat(3, tuning_l, tuning_d), 3);
 %     curr_ts = timeseries;
     
-    curr_tuning = mean(cat(3, tuning_l(clust_id == c, :), tuning_d(clust_id == c, :)), 3); % Combine
+    curr_tuning = tuning_l(clust_id == c, :); % Combine
     curr_ts = timeseries(clust_id == c, :);
 
     % Using nora's
-    [decoded_heading, heading_distribution] = decodePopulationActivity_NORA(curr_tuning, curr_ts);
+    [decoded_heading, heading_distribution] = decodePopulationActivity(curr_tuning, curr_ts, hda(1).is_head_direction(clust_id == c));
     heading = rescale([hda(1).getHeading(); hda(2).getHeading()], 0, size(tuning_l, 2));
     
     %decoded_heading = headingCorrector(heading_distribution, heading);

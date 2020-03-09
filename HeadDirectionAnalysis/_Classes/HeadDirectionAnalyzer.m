@@ -1,5 +1,5 @@
 classdef HeadDirectionAnalyzer < handle
-    
+
     % Make sure you have the circular statistics toolbox
     properties (Constant = true)
         RADIUS    double = 125; % Radius of the arena
@@ -39,7 +39,7 @@ classdef HeadDirectionAnalyzer < handle
             
             obj.extractHeading();
         end
- 
+
         function printStats(obj)
             fprintf('%0.2f%% cells tuned\n', mean(obj.is_head_direction) * 100);
         end
@@ -57,9 +57,9 @@ classdef HeadDirectionAnalyzer < handle
             
             out = zeros(size(binned_data, 1), 2);
             switch method
-                case 'vectorsum'
-                    for c = 1:size(binned_data, 1)
-                        dat = binned_data(c, :);
+            case 'vectorsum'
+                for c = 1:size(binned_data, 1)
+                    dat = binned_data(c, :);
                         dat(dat < 0) = 0; % rectify
                      %   dat = rescale(dat);
                         %dat(dat < 0) = 0; % rectify
@@ -73,12 +73,12 @@ classdef HeadDirectionAnalyzer < handle
                 otherwise
                     fprintf('Invalid method provided (methods: vectorsum or max)\n')
                     return
-            end
-            
-            obj.direction_info = out;
-        end
+                end
 
-        function calculateHeadDirectionIdx_direction(obj)
+                obj.direction_info = out;
+            end
+
+            function calculateHeadDirectionIdx_direction(obj)
             % The preferred direction here is calculated by splitting the recording into sections (generally quadrants), then
             % seeing how "stable" the responses are across the sections. A correlation greater than 0.2 is considered to be
             % "tuned"
@@ -89,48 +89,52 @@ classdef HeadDirectionAnalyzer < handle
             
             obj.direction_info = obj.calculatePreferredDirection('vectorsum');
             
-%             if isempty(obj.shuffled_threshold)
-%                 obj.getShuffledThreshold(neural_data);
-%             end
-            
             obj.is_head_direction = obj.direction_info(:, 2)' > 0.2;% temporary thershold obj.shuffled_threshold;
         end
 
-        function tuning = calculateHeadDirection_testing(obj)
-            binned_data = obj.binData();
-            tuning = var(binned_data, 0, 2);
-            obj.is_head_direction = tuning > prctile(tuning, 80);
+        function calculateHeadDirection(obj, iterations, threshold)
+            if nargin < 2 || isempty(iterations)
+                iterations = 100;
+            end
+
+            if nargin < 3 || isempty(threshold)
+                threshold = 95;
+            end
+
+            data = obj.binData();
+            [~, ori_pref] = max(data, [], 2);
+            osi_vec = obj.calculateOSI(data, ori_pref);
+
+            % shuffle 
+            for i = 1:iterations
+                shuffled_data = circshift(data, randi(size(data, 2)), 2); % rotate
+                shuffled_osi(:, i) = obj.calculateOSI(shuffled_data, ori_pref);
+            end
+            threshold = prctile(shuffled_osi, 95, 2);
+            obj.is_head_direction = osi_vec > threshold';
         end
 
-        function osiVec = calculateHeadDirectionIdx_ori(obj)
-                binned_data = obj.binData();
-                
+        function osiVec = calculateOSI(obj, binned_data, ori_pref)                
                 % Prepare data
                % oriPref = obj.getPreferredDirection();
               %  oriPref = round(oriPref .* size(binned_data, 2) ./ (2*pi));
-                 n_ori = size(binned_data, 2);
-                [~, oriPref] = max(binned_data,[],2);
-                ct = 0;
-                win = 2;
-                for resp = binned_data'
-                    ct = ct + 1;
-%                     pref = resp(oriPref(ct));
-%                     orth = mean(resp([mod(oriPref(ct)-n_ori/4-1,n_ori)+1 mod(oriPref(ct)+n_ori/4-1,n_ori)+1]));
-                    
-                    pref = mean(resp(max([1, oriPref(ct) - win]) : min([length(resp), oriPref(ct) + win])));
-                    orth = mean(resp([max([1, mod(oriPref(ct) - n_ori / 4 - 1, n_ori) - win + 1]):...
-                                      min([length(resp), mod(oriPref(ct) - n_ori / 4 - 1, n_ori) + win + 1]),...
-                                      max([1, mod(oriPref(ct) + n_ori / 4 - 1, n_ori) - win + 1]):...
-                                      min([length(resp), mod(oriPref(ct) + n_ori / 4 - 1, n_ori) + win + 1])]));
-    
-                    osiVec(ct) = (max([1 pref])-max([1 orth]))/(max([1 pref])+max([1 orth]));
-%                     if osiVec(ct) > 0.2
-%                         plot(resp)
-%                         title(osiVec(ct))
-%                     end
-                end
-                
-                obj.is_head_direction = osiVec > 0.3;
+              n_ori = size(binned_data, 2);
+              if nargin < 3 || isempty(ori_pref)
+                [~, ori_pref] = max(binned_data,[],2);
+            end
+
+            ct = 0;
+            win = 2;
+            for resp = binned_data'
+                ct = ct + 1;
+                pref = mean(resp(max([1, ori_pref(ct) - win]) : min([length(resp), ori_pref(ct) + win])));
+                orth = mean(resp([max([1, mod(ori_pref(ct) - n_ori / 4 - 1, n_ori) - win + 1]):...
+                    min([length(resp), mod(ori_pref(ct) - n_ori / 4 - 1, n_ori) + win + 1]),...
+                    max([1, mod(ori_pref(ct) + n_ori / 4 - 1, n_ori) - win + 1]):...
+                    min([length(resp), mod(ori_pref(ct) + n_ori / 4 - 1, n_ori) + win + 1])]));
+
+                osiVec(ct) = (max([1 pref])-max([1 orth]))/(max([1 pref])+max([1 orth]));
+            end
         end
         
         function removeMovingSamples(obj, speed_threshold, peak_width, search_window)
@@ -170,7 +174,7 @@ classdef HeadDirectionAnalyzer < handle
             
             % Maybe we should add a little "leeway" here
             flip_score = auto_corr(:, floor((180/360) * length(rotations)) + 1) - ...
-                auto_corr(:, floor((90/360) * length(rotations)) + 1);
+            auto_corr(:, floor((90/360) * length(rotations)) + 1);
             
             %The following analyses were using "standard" autocorrelational measures, but we're going to try the method
             %outlined in the paper
@@ -192,7 +196,7 @@ classdef HeadDirectionAnalyzer < handle
         end
     end
     
-   
+
     methods % Setters and getters
         function out = getHeading(obj)
             out = obj.floating.heading;
@@ -221,7 +225,7 @@ classdef HeadDirectionAnalyzer < handle
     end
     
     methods (Access = protected) % Helper methods
-        
+
         function [x, y] = getCoords(obj)
             % Convetrs the raw X and Y from floating into usable coordinates for plotting
             x = round(obj.floating.X + obj.RADIUS)';  % Round to turn into coordinates
@@ -320,15 +324,16 @@ classdef HeadDirectionAnalyzer < handle
             else
                 groups = discretize(heading, bin_edges);
             end
+
             u_groups = 1:length(bin_edges) - 1; % Changed because sometimes not all groups represented?
             out = zeros(size(data, 1), length(u_groups));
-            
+
             for bin = 1:length(u_groups)
                 for c = 1:size(data, 1)
                     temp = data(c, groups == u_groups(bin));
                     % histogram(temp)
                     % pause
-                    out(c, bin) = mean(temp(temp ~= 0));
+                    out(c, bin) = mean(temp); % should I only take values that are nonzero?
                     % out(c, bin) = mean(data(c, groups  == u_groups(bin)));
                 end
             end
@@ -351,7 +356,7 @@ classdef HeadDirectionAnalyzer < handle
             end
             
             fold_flag = false; % moved the angle doubling elsewhere, but keeping here for now just in case
-                
+
             getHorz = @(v, theta) v .* cos(theta);
             getVert = @(v, theta) v .* sin(theta);
             getAng = @(vert, horz) atan2(vert, horz);
@@ -359,7 +364,7 @@ classdef HeadDirectionAnalyzer < handle
             
             if fold_flag
                 data = mean([data(1:size(data, 2)/2); data(size(data, 2)/2 + 1:end)]);
-                  theta = linspace(0, 2*pi, length(data));
+                theta = linspace(0, 2*pi, length(data));
                 warning('Because of the angle doubling, don''t particularly trust the actual values for pref dir')
             else
                 theta = linspace(0, 2*pi, length(data));

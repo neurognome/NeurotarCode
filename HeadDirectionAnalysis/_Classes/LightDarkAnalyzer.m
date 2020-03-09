@@ -16,7 +16,7 @@ classdef LightDarkAnalyzer < handle
             obj.dark_hda = dark_hda;
             
             obj.light_data = obj.light_hda.getBinnedData();
-            obj.dark_data = obj.dark_hda.getBinnedData();
+            obj.dark_data = obj.da``rk_hda.getBinnedData();
             
             % REmove junk cells first
             
@@ -25,7 +25,8 @@ classdef LightDarkAnalyzer < handle
             %             obj.dark_data = obj.dark_data(obj.light_hda.is_head_direction, :);
         end
         
-        function classifyResponses(obj, check_flag, light_tuning, dark_tuning)
+        function [coeffs, rsqr] = classifyResponses(obj, check_flag, light_tuning, dark_tuning)
+            save_flag = false;
             if nargin < 2 || isempty(check_flag)
                 check_flag = true;
             end
@@ -42,7 +43,7 @@ classdef LightDarkAnalyzer < handle
             data = zeros(size(light_tuning, 1), (size(dark_tuning, 2) + size(light_tuning, 2)));
             
             % Preprocess and fit the data 
-            parfor c = 1:size(light_tuning, 1) % parallel for loop wows peed
+            for c = 1:size(light_tuning, 1) % parallel for loop wows peed
                 % Find the proper offset
                 fprintf('Fitting gaussian for cell %d/%d \n', c, size(light_tuning, 1))
                 bound = @(x, bl, bu) min(max(x, bl), bu);
@@ -52,28 +53,29 @@ classdef LightDarkAnalyzer < handle
 
                 coeffs = obj.fitDoubleGaussian(combined_tuning(c, :), modelfun);
 
-                [coeffs_light, rsqr] = obj.fitDoubleGaussian(light_tuning(c, :), modelfun);
+                [coeffs_light(c, :), rsqr_l(c)] = obj.fitDoubleGaussian(light_tuning(c, :), modelfun);
 
                 % Baseline shift
-                if rsqr > 0
-                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_light(1); % baseline sub
+                if rsqr_l(c) > 0
+                    light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_light(c, 1); % baseline sub
                 else
                     light = (circshift(light_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - mean(light_tuning(c, :));
                 end
                 
-                [coeffs_dark, rsqr] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
-                if rsqr > 0
-                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_dark(1);
+                [coeffs_dark(c, :), rsqr_d(c)] = obj.fitDoubleGaussian(dark_tuning(c, :), modelfun);
+                if rsqr_d(c) > 0
+                    dark = (circshift(dark_tuning(c, :), size(light_tuning, 2)/4 - round(coeffs(3)))) - coeffs_dark(c, 1);
                 else
                     dark = (circshift(dark_tuning(c, :), size(dark_tuning, 2)/4 - round(coeffs(3)))) - mean(dark_tuning(c, :));
                 end
 
                 % Put the processed data together for clustering
-                data(c, :) = cat(2, rescale(light), rescale(dark));
+                data(c, :) = rescale(cat(2, (light), (dark)));
             end
-            % data = data(obj.light_hda.is_head_direction, :);
 
-            % Run clustering
+            %% screening cells, 04Mar2020, take only tuned cells
+            data = data(obj.light_hda.is_head_direction, :);
+
             max_clust_flag = false;
             while true
                 obj.clust_id = obj.cluster(data, true, max_clust_flag); % PCA clustering
@@ -89,7 +91,15 @@ classdef LightDarkAnalyzer < handle
                     max_clust_flag = true;
                 end
             end
+            coeffs = cat(3, coeffs_light, coeffs_dark);
+            rsqr = cat(1, rsqr_l, rsqr_d);
+
+            if save_flag
+                clust_id = obj.clust_id;
+                save('tuning_data.mat', 'data', 'clust_id');
+            end
         end
+        
         
         function viewClusteredResponses(obj)
             unshifted_data = zeros(size(obj.light_data, 1), 2 * size(obj.light_data, 2));
@@ -122,7 +132,7 @@ classdef LightDarkAnalyzer < handle
         function out = getClusters(obj)
             out = obj.clust_id;
         end
-        
+
         function clustID = cluster(obj, data, pca_flag, max_clust_flag)
             % From Michael 20Dec2019
             if nargin < 3 || isempty(pca_flag)
@@ -149,7 +159,7 @@ classdef LightDarkAnalyzer < handle
             f = figure;
 
             if max_clust_flag
-                [~, ~, cluster_order] = dendrogram(Z, numCells)
+                [~, ~, cluster_order] = dendrogram(Z, numCells);
                 set(gcf,'color',[1 1 1])
                 numClust = input('How many clusters? ');    % Determine cluster number on dendrogram
                 clustID = cluster(Z,'maxclust',numClust);
@@ -227,7 +237,7 @@ classdef LightDarkAnalyzer < handle
                 cluster_se(ct, :) = std(data(obj.clust_id == c, :), 0, 1) / sqrt(sum(obj.clust_id == c));
                 ct = ct + 1;
             end
-            
+
             figure
             for c = 1:obj.n_clusters
                 legend_text{c} = ['Cluster #' num2str(c)];
@@ -285,7 +295,6 @@ classdef LightDarkAnalyzer < handle
                     figCount = ceil(c/4);
                     %saveas(gcf,['Cluster_Responses_' num2str(figCount)],'fig')
                 end
-                
             end
         end
         
