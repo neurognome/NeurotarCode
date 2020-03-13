@@ -16,7 +16,7 @@ classdef LightDarkAnalyzer < handle
             obj.dark_hda = dark_hda;
             
             obj.light_data = obj.light_hda.getBinnedData();
-            obj.dark_data = obj.da``rk_hda.getBinnedData();
+            obj.dark_data = obj.dark_hda.getBinnedData();
             
             % REmove junk cells first
             

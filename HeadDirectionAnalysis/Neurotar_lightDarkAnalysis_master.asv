@@ -35,8 +35,7 @@ rowmin = min(heading_distribution, [], 2);
 rowmax = max(heading_distribution, [], 2);
 
 heading_distribution = rescale(heading_distribution, 'InputMin', rowmin, 'InputMax', rowmax);
-figure
-imagesc(heading_distribution')
+imagesc(heading_distrib
 
 figure;
 hold on

@@ -74,7 +74,7 @@ classdef HeadDirectionPreprocessor < NeurotarPreProcessor
                 n_segments = floor(n_segments);
             end
             
-            flip_flop = 1;
+            yea = 1;
             data1 = [];
             data2 = [];
             for i_segment = 1:n_segments

@@ -31,10 +31,10 @@ classdef HeadDirectionAnalyzer < handle
     
     methods % Main methods
         function obj = HeadDirectionAnalyzer(data, floating)
-            obj.init_data     = data;
+            obj.init_data = data;
             obj.init_floating = floating;
             
-            obj.data     = data;
+            obj.data = data;
             obj.floating = floating;
             
             obj.extractHeading();

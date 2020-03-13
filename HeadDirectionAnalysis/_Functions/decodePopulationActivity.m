@@ -19,24 +19,21 @@ tuning_wts = rescale(tuning_curve,...
     'InputMin', min(tuning_curve, [], 2),...
     'InputMax', max(tuning_curve, [], 2));
 
-
 tuning_wts(~is_head_direction, :) = tuning_wts(~is_head_direction, :) * 0.3; % reduce the contribution of non-hd cells
 
-%{
-% cap it
-cap = prctile(time_series', 95); % removing mega spikes
-for ii = 1:size(time_series, 1)
-    temp = time_series(ii, :);
-    temp(temp > cap(ii)) = cap(ii);
-    time_series(ii, :) = temp;
-end
+
+% % cap it
+% cap = prctile(time_series', 95); % removing mega spikes
+% for ii = 1:size(time_series, 1)
+%     temp = time_series(ii, :);
+%     temp(temp > cap(ii)) = cap(ii);
+%     time_series(ii, :) = temp;
+% end
 
 
-time_series = rescale(time_series,...
-    'InputMin', min(time_series, [], 2),...
-    'InputMax', max(time_series, [], 2));
-%}
-
+% % time_series = rescale(time_series,...
+% %     'InputMin', min(time_series, [], 2),...
+% %     'InputMax', max(time_series, [], 2));
 
 
 %% Get the heading distribution, a matrix of possible headings at each given time point
@@ -47,9 +44,11 @@ for t = 1:size(time_series, 2)
     activity = max(mean(...
         time_series(:, max(t-pre_post_samples, 1) : min(t+pre_post_samples,...
         length(time_series))), 2), 0);
-    heading_distribution(t, :) = sum((activity) .* tuning_wts) ./ sum(tuning_wts); % nonzero weights are lost);
-end
 
+    is_weak_contributor = activity == 0; %very weak contributor lol
+
+    heading_distribution(t, :) = sum(activity .* tuning_wts) ./ sum(tuning_wts(~is_weak_contributor, :)); % nonzero weights are lost);
+end
 
 for ii = 1:size(heading_distribution, 1)
     current_heading_distribution = mean(heading_distribution(max(1, ii) : ii, :), 1); % what's the purpose of this line?
