@@ -29,16 +29,46 @@ timeseries = timeseries(hda(1).is_head_direction, :);
 
 %% Looking at the results
 heading = rescale(heading, 0, size(tuning, 2));
-[predicted_heading, heading_distribution] = decodePopulationActivity(tuning, timeseries);
-% view heading distribution
-rowmin = min(heading_distribution, [], 2);
-rowmax = max(heading_distribution, [], 2);
+[predicted_heading, heading_distribution, cf] = decodePopulationActivity(tuning, timeseries);
 
-heading_distribution = rescale(heading_distribution, 'InputMin', rowmin, 'InputMax', rowmax);
+% figure;
+% plot(cf)
+% title('Contributing fraction')
+% % view heading distribution
+% rowmin = min(heading_distribution, [], 2);
+% rowmax = max(heading_distribution, [], 2);
+% % 
+% % heading_distribution = rescale(heading_distribution, 'InputMin', rowmin, 'InputMax', rowmax);
+% % figure
+% % imagesc(heading_distribution')
+% 
+% figure;
+% hold on
+% flip_vec =  1:segment_length*10:length(heading);
+% for i = 1:length(flip_vec)
+%     if mod(i, 2)
+%         color = [1, 1, 0.93];
+%     else
+%         color = [0.9, 0.9, 0.9];
+%     end
+%     
+%     if i == length(flip_vec)
+%         t = flip_vec(i):length(heading);
+%     else
+%         t = flip_vec(i) : flip_vec(i+1);
+%     end
+%     fill([t, fliplr(t)], [repmat(0, 1, length(t)), fliplr(repmat(72, 1, length(t)))], color);
+% end
+% 
+% plot(heading, 'k')
+% hold on
+% plot(predicted_heading, 'r');
+% axis tight
+
+
+%% check performance
 figure
-imagesc(heading_distribution')
-
-figure;
+subplot(3, 1, 1)
 hold on
 flip_vec =  1:segment_length*10:length(heading);
 for i = 1:length(flip_vec)
@@ -60,6 +90,18 @@ plot(heading, 'k')
 hold on
 plot(predicted_heading, 'r');
 axis tight
+
+subplot(3, 1, 2)
+
+plot(cf)
+title('Contributing fraction')
+
+subplot(3, 1, 3)
+    prediction_error = calculatePredictionError(predicted_heading, heading);
+    plot(movmean(prediction_error, 100))
+    
+    
+%{
 
 %% You can load previous data for here
 
@@ -789,3 +831,5 @@ plot(hda(2).init_data.frame_F);
 %}
 %}
 %}
+    %}
+    %}

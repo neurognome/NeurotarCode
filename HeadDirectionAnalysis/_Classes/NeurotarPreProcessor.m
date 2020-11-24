@@ -57,6 +57,9 @@ classdef NeurotarPreProcessor < handle
             
             obj.preprocessChecker();  % Confirming everything worked by checking lengths against each other
             
+            % adding heading to floating
+            obj.floating.heading = obj.floating.alpha;
+
             data = obj.getData();
             floating = obj.getFloating();
             
@@ -74,7 +77,7 @@ classdef NeurotarPreProcessor < handle
             data = obj.data;
             save(strcat(new_filename, '_data.mat'), 'data')
            
-            floating_filename = strcat('floating_matched_', new_filename);
+            floating_filename = strcat(new_filename, '_floating_matched');
             floating = obj.floating;
             save(floating_filename, 'floating');
         end
@@ -110,11 +113,15 @@ classdef NeurotarPreProcessor < handle
             out = strcat('floating_matched', data_filename);
         end
         
-        function time = extractTime(obj, floating)
+        function time = extractTimeOLD(obj, floating)
             time = floating.time - '00:00:00.000'; % subtracting is necessary to turn the time into a matrix
             time = time(:, [4,5,7,8,10:12]); % this is assuming none of recording last more than an hour
             time = time .* [6 * 10^5, 6 * 10^4, 10^4, 10^3, 10^2, 10^1, 1];
-            time = sum(time, 2) / 1000;
+            time = sum(time, 2) / 1000; 
+        end
+        
+        function time = extractTime(obj, floating)
+            time = (floating.time - floating.time(1)) / 1000;
         end
         
         function isUniform = checkSamplingRate(obj,time)

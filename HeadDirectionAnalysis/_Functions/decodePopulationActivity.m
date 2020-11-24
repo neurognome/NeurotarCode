@@ -1,4 +1,4 @@
-function [predicted_heading, heading_distribution] = decodePopulationActivity(tuning_curve, time_series, is_head_direction)
+function [predicted_heading, heading_distribution, contribute_fraction] = decodePopulationActivity(tuning_curve, time_series, is_head_direction)
 
 if nargin < 3 || isempty(is_head_direction)
 	is_head_direction = true(1, size(tuning_curve, 1));
@@ -46,7 +46,7 @@ for t = 1:size(time_series, 2)
         length(time_series))), 2), 0);
 
     is_weak_contributor = activity == 0; %very weak contributor lol
-
+    contribute_fraction(t) = (mean(~is_weak_contributor));
     heading_distribution(t, :) = sum(activity .* tuning_wts) ./ sum(tuning_wts(~is_weak_contributor, :)); % nonzero weights are lost);
 end
 

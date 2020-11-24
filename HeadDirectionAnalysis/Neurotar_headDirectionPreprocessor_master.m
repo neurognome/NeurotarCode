@@ -1,10 +1,10 @@
 %Neurotar_headDirectionAnalysis
 % Reformat to MMM###_MM_DD_IMAGING_S.xlsx
 addpath(genpath('E:\_Code\NeurotarCode'));
-
+addpath(genpath('E:\_Code\Other Helper Functions (not from me)\TDMS_Reader'));
 clear;
 
-flicker_flag = true;
+flicker_flag = false;
 
 temp = dir('*.mat');
 
@@ -14,20 +14,17 @@ end
 
 temp = strcat(temp.name);
 
-if ~contains(temp, 'floating')
-    disp('Excel file not extracted yet... doing that now')
-    n = NeurotarDataExtractor();
-    n.saveData;
+if ~contains(temp, '_raw_stimulus.mat')  
+    disp('TDMS file not extracted yet... doing that now')
+    floating = convertTDMS(false);
 end
 
-disp('Choose your floating data:')
-f_fn = uigetfile('*.mat');
+
 disp('Choose your neural data:')
 n_fn = uigetfile('*.mat');
 
-floating = importdata(f_fn);
 data = importdata(n_fn);
-hdp = HeadDirectionPreprocessor(data, floating, flicker_flag); % Data, floating, light_dark_flag
+npp = NeurotarPreProcessor(data, floating); % Data, floating, light_dark_flag
 
-hdp.setForceTimeLock(true);
-hdp.processData(7); % Input argument is the average window size for meaning across indices
+npp.setForceTimeLock(true);
+npp.processData(7); % Input argument is the average window size for meaning across indices
