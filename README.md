@@ -1,2 +1,2 @@
 # NeurotarCode
-Mostly deprecated, because I don't use the neurotar anymore...
+
